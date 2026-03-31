@@ -14,11 +14,6 @@ echo "内核: $(uname -r)"
 echo "架构: $(uname -m)"
 
 echo ""
-echo "--- CPU信息 ---"
-echo "CPU型号: $(grep "model name" /proc/cpuinfo 2>/dev/null | uniq | cut -d: -f2 | xargs)"
-echo "CPU核心数: $(nproc)"
-
-echo ""
 echo "--- 内存使用 ---"
 free -h | awk 'NR==1{print $0} NR==2{print "总内存: " $3 "/" $2 " (" $5 ")"}'
 
@@ -38,67 +33,23 @@ echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 echo ""
 echo "--- 网络算法 ---"
 echo "拥堵算法: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "无法获取")"
-echo "队列算法: $(sysctl -n net.core.default_qdisc 2>/dev/null || echo "无法获取")"
 
 echo ""
-echo "--- 流量统计 ---"
-rx_bytes=$(cat /proc/net/dev | grep -v "lo" | awk '{rx+=$2} END{print rx}')
-tx_bytes=$(cat /proc/net/dev | grep -v "lo" | awk '{tx+=$10} END{print tx}')
-rx_gb=$(echo "scale=2; $rx_bytes/1024/1024/1024" | bc 2>/dev/null || echo "$rx_bytes/1073741824" | bc -l 2>/dev/null)
-tx_gb=$(echo "scale=2; $tx_bytes/1024/1024/1024" | bc 2>/dev/null || echo "$tx_bytes/1073741824" | bc -l 2>/dev/null)
-echo "总接收: ${rx_gb} GB"
-echo "总发送: ${tx_gb} GB"
-
-echo ""
-echo "--- UDP/端口检测 ---"
-echo "检测UDP 500端口 (WARP):"
-if command -v nc &>/dev/null; then
-    result=$(timeout 2 nc -zvu 162.159.192.1 500 2>&1)
-    if echo "$result" | grep -q "succeeded"; then
-        echo "✅ UDP 500 开放"
-    else
-        echo "❌ UDP 500 被封锁"
-    fi
-elif command -v python3 &>/dev/null; then
-    python3 -c "
-import socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(2)
-try:
-    sock.sendto(b'test', ('162.159.192.1', 500))
-    data, addr = sock.recvfrom(1024)
-    print('✅ UDP 500 开放')
-except:
-    print('❌ UDP 500 被封锁')
-sock.close()
-" 2>/dev/null || echo "⚠️ 检测失败"
+echo "--- WARP/代理检测 ---"
+echo "检测当前IP是否WARP出站:"
+warp_status=$(curl -s -m 5 "https://ip.cloudflare.nyc.mn/" 2>/dev/null | grep -o '"warp":[true,false]' | cut -d: -f2)
+if [ "$warp_status" = "true" ]; then
+    echo "✅ 当前已通过WARP出站"
 else
-    echo "⚠️ 需要nc或python3进行检测"
+    echo "❌ 当前未通过WARP出站"
 fi
 
-echo "检测UDP 4500端口 (WARP):"
-if command -v nc &>/dev/null; then
-    result=$(timeout 2 nc -zvu 162.159.192.1 4500 2>&1)
-    if echo "$result" | grep -q "succeeded"; then
-        echo "✅ UDP 4500 开放"
-    else
-        echo "❌ UDP 4500 被封锁"
-    fi
-elif command -v python3 &>/dev/null; then
-    python3 -c "
-import socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(2)
-try:
-    sock.sendto(b'test', ('162.159.192.1', 4500))
-    data, addr = sock.recvfrom(1024)
-    print('✅ UDP 4500 开放')
-except:
-    print('❌ UDP 4500 被封锁')
-sock.close()
-" 2>/dev/null || echo "⚠️ 检测失败"
+echo "检测Cloudflare WARP服务连通性:"
+cf_connect=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com/cdn-cgi/trace")
+if [ "$cf_connect" = "200" ]; then
+    echo "✅ Cloudflare可访问 (可套WARP)"
 else
-    echo "⚠️ 需要nc或python3进行检测"
+    echo "❌ Cloudflare不可访问"
 fi
 
 echo ""
@@ -106,14 +57,6 @@ echo "--- 流媒体解锁检测 ---"
 echo "Netflix: $(curl -s -m 3 "https://www.netflix.com/" 2>/dev/null | grep -q "netflix" && echo "✅解锁" || echo "❌未解锁")"
 echo "ChatGPT: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/")"
 echo "YouTube Premium: $(curl -s -m 3 "https://www.youtube.com/premium" 2>/dev/null | grep -q "Premium" && echo "✅" || echo "❌")"
-
-echo ""
-echo "--- WARP状态 ---"
-if command -v warp-cli &>/dev/null; then
-    warp-cli status 2>/dev/null | head -3
-else
-    echo "WARP未安装"
-fi
 
 echo ""
 echo "--- 当前用户 ---"
