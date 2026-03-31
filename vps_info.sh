@@ -52,19 +52,27 @@ echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.
 echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 
 echo ""
-echo "--- WARP API 检测 ---"
+echo "--- WARP可用性检测 ---"
 warp_api1=$(curl -s -m 5 "https://warp.xijp.eu.org" 2>/dev/null)
 warp_api2=$(curl -s -m 5 "https://warp.cloudflare.now.cc/?run=register&format=sing-box" 2>/dev/null)
 
 warp1_ok=0
 warp2_ok=0
-echo "$warp_api1" | grep -qE "Private_key|private_key" && warp1_ok=1
-echo "$warp_api2" | grep -q '"private_key"' && warp2_ok=1
+
+# 检查API1：需包含Private_key、IPV6、reserved三个字段
+if echo "$warp_api1" | grep -qE "Private_key|private_key" && echo "$warp_api1" | grep -q "2606:4700" && echo "$warp_api1" | grep -qi "reserved"; then
+warp1_ok=1
+fi
+
+# 检查API2：需包含private_key、IPv6地址、reserved三个字段
+if echo "$warp_api2" | grep -q '"private_key"' && echo "$warp_api2" | grep -q "2606:4700" && echo "$warp_api2" | grep -q '"reserved"'; then
+warp2_ok=1
+fi
 
 if [ "$warp1_ok" = 1 ] || [ "$warp2_ok" = 1 ]; then
-    echo "是否能套WARP: ✅ 可以"
+echo "套WARP: ✅"
 else
-    echo "是否能套WARP: ❌ 不可以"
+echo "套WARP: ❌"
 fi
 
 echo ""
