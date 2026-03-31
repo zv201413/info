@@ -15,13 +15,20 @@
 - 流量统计
 - 当前用户信息
 
-## 使用方法
+## 在线运行
 
 ```bash
+bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)
+```
+
+或先下载再运行：
+
+```bash
+curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh -o vps_info.sh
 bash vps_info.sh
 ```
 
-或
+## 本地运行
 
 ```bash
 chmod +x vps_info.sh
