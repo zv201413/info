@@ -57,6 +57,7 @@ echo "--- 流媒体解锁检测 ---"
 echo "Netflix: $(curl -s -m 3 "https://www.netflix.com/" 2>/dev/null | grep -q "netflix" && echo "✅解锁" || echo "❌未解锁")"
 echo "ChatGPT: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/")"
 echo "YouTube Premium: $(curl -s -m 3 "https://www.youtube.com/premium" 2>/dev/null | grep -q "Premium" && echo "✅" || echo "❌")"
+echo "Gemini: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://gemini.google.com/")"
 
 echo ""
 echo "--- 当前用户 ---"
