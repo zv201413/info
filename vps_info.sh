@@ -52,26 +52,31 @@ echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.
 echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 
 echo ""
-echo "--- 网络算法 ---"
-echo "拥堵算法: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "无法获取")"
+echo "--- WARP/代理检测 ---"
+cf_http=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com")
+cf_api=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://www.cloudflare.com/cdn-cgi/trace")
+warp_v4=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://162.159.192.1/cdn-cgi/trace" --resolve warp.cloudflare.com:443:162.159.192.1 2>/dev/null)
+warp_v6=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://[2606:4700:d0::a29f:c001]/cdn-cgi/trace" 2>/dev/null)
+
+printf "%-27s %-12s %s\n" "检测Cloudflare常规访问:" "Cloudflare HTTP:" "$([ "$cf_http" = "200" ] && echo "✅ 可访问" || echo "❌ 不可访问 ($cf_http)")"
+printf "%-27s %-12s %s\n" "检测Cloudflare CDN API:" "Cloudflare API:" "$([ "$cf_api" = "200" ] && echo "✅ 可访问" || echo "❌ 不可访问 ($cf_api)")"
+printf "%-27s %-12s %s\n" "检测WARP Endpoint IPv4:" "WARP IPv4:" "$([ "$warp_v4" = "200" ] && echo "✅ 可连接" || echo "❌ 无法连接")"
+printf "%-27s %-12s %s\n" "检测WARP Endpoint IPv6:" "WARP IPv6:" "$([ "$warp_v6" = "200" ] && echo "✅ 可连接" || echo "❌ 无法连接")"
 
 echo ""
-echo "--- WARP/代理检测 ---"
-echo "检测Cloudflare常规访问:"
-cf_code=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com")
-[ "$cf_code" = "200" ] && echo "Cloudflare HTTP: ✅ 可访问" || echo "Cloudflare HTTP: ❌ 不可访问 ($cf_code)"
+echo "--- WARP可用性判断 ---"
+score=0
+[ "$cf_api" = "200" ] && ((score++))
+[ "$warp_v4" = "200" ] && ((score++))
+[ "$warp_v6" = "200" ] && ((score++))
 
-echo "检测Cloudflare CDN API:"
-cdn_code=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://www.cloudflare.com/cdn-cgi/trace")
-[ "$cdn_code" = "200" ] && echo "Cloudflare API: ✅ 可访问" || echo "Cloudflare API: ❌ 不可访问 ($cdn_code)"
-
-echo "检测WARP Endpoint IPv4:"
-warp_v4=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://162.159.192.1/cdn-cgi/trace" --resolve warp.cloudflare.com:443:162.159.192.1 2>/dev/null)
-[ "$warp_v4" = "200" ] && echo "WARP IPv4: ✅ 可连接" || echo "WARP IPv4: ❌ 无法连接"
-
-echo "检测WARP Endpoint IPv6:"
-warp_v6=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://[2606:4700:d0::a29f:c001]/cdn-cgi/trace" 2>/dev/null)
-[ "$warp_v6" = "200" ] && echo "WARP IPv6: ✅ 可连接" || echo "WARP IPv6: ❌ 无法连接"
+case $score in
+    3) mode="✅ 直接WireGuard (100%)";;
+    2) mode="✅ 直接WireGuard (80%)";;
+    1) mode="⚠️ Argo隧道可能 (50%)";;
+    0) mode="❌ 无法使用WARP";;
+esac
+echo "WARP模式: ${mode}"
 
 echo ""
 echo "--- 流媒体解锁检测 ---"
