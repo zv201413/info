@@ -1,5 +1,18 @@
 #!/bin/bash
 
+check_service() {
+    local url=$1
+    local name=$2
+    local code=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "$url")
+    case $code in
+        200|302) echo "✅ ${name}" ;;
+        301|308) echo "⚠️ ${name} (重定向)" ;;
+        403) echo "❌ ${name} (禁止)" ;;
+        000) echo "❌ ${name} (超时)" ;;
+        *) echo "❌ ${name} ($code)" ;;
+    esac
+}
+
 echo "=== VPS 基础信息查询 ==="
 echo ""
 
@@ -36,28 +49,18 @@ echo "拥堵算法: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || e
 
 echo ""
 echo "--- WARP/代理检测 ---"
-echo "检测当前IP是否WARP出站:"
 warp_status=$(curl -s -m 5 "https://ip.cloudflare.nyc.mn/" 2>/dev/null | grep -o '"warp":[true,false]' | cut -d: -f2)
-if [ "$warp_status" = "true" ]; then
-    echo "✅ 当前已通过WARP出站"
-else
-    echo "❌ 当前未通过WARP出站"
-fi
+[ "$warp_status" = "true" ] && echo "WARP出站: ✅ 已通过WARP" || echo "WARP出站: ❌ 未通过WARP"
 
-echo "检测Cloudflare WARP服务连通性:"
 cf_connect=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com/cdn-cgi/trace")
-if [ "$cf_connect" = "200" ]; then
-    echo "✅ Cloudflare可访问 (可套WARP)"
-else
-    echo "❌ Cloudflare不可访问"
-fi
+[ "$cf_connect" = "200" ] && echo "Cloudflare: ✅ 可访问 (可套WARP)" || echo "Cloudflare: ❌ 不可访问"
 
 echo ""
 echo "--- 流媒体解锁检测 ---"
-echo "Netflix: $(curl -s -m 3 "https://www.netflix.com/" 2>/dev/null | grep -q "netflix" && echo "✅解锁" || echo "❌未解锁")"
-echo "ChatGPT: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/")"
-echo "YouTube Premium: $(curl -s -m 3 "https://www.youtube.com/premium" 2>/dev/null | grep -q "Premium" && echo "✅" || echo "❌")"
-echo "Gemini: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://gemini.google.com/")"
+check_service "https://www.netflix.com/" "Netflix"
+check_service "https://chat.openai.com/" "ChatGPT"
+check_service "https://www.youtube.com/premium" "YouTube"
+check_service "https://gemini.google.com/" "Gemini"
 
 echo ""
 echo "--- 当前用户 ---"
