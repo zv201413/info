@@ -55,19 +55,17 @@ echo ""
 echo "--- WARP/代理检测 ---"
 cf_http=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com")
 cf_api=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://www.cloudflare.com/cdn-cgi/trace")
-warp_v4=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://162.159.192.1/cdn-cgi/trace" --resolve warp.cloudflare.com:443:162.159.192.1 2>/dev/null)
-warp_v6=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://[2606:4700:d0::a29f:c001]/cdn-cgi/trace" 2>/dev/null)
 
 printf "%-27s %-12s %s\n" "检测Cloudflare常规访问:" "Cloudflare HTTP:" "$([ "$cf_http" = "200" ] && echo "✅ 可访问" || echo "❌ 不可访问 ($cf_http)")"
 printf "%-27s %-12s %s\n" "检测Cloudflare CDN API:" "Cloudflare API:" "$([ "$cf_api" = "200" ] && echo "✅ 可访问" || echo "❌ 不可访问 ($cf_api)")"
-printf "%-27s %-12s %s\n" "检测WARP Endpoint IPv4:" "WARP IPv4:" "$([ "$warp_v4" = "200" ] && echo "✅ 可连接" || echo "❌ 无法连接")"
-printf "%-27s %-12s %s\n" "检测WARP Endpoint IPv6:" "WARP IPv6:" "$([ "$warp_v6" = "200" ] && echo "✅ 可连接" || echo "❌ 无法连接")"
 
 echo ""
 echo "--- WARP可用性判断 ---"
-can_warp="❌"
-[ "$warp_v4" = "200" ] || [ "$warp_v6" = "200" ] && can_warp="✅"
-echo "是否能套WARP: ${can_warp}"
+if [ "$cf_api" = "200" ]; then
+    echo "是否能套WARP: ✅ 可以"
+else
+    echo "是否能套WARP: ❌ 不可以"
+fi
 
 echo ""
 echo "--- 流媒体解锁检测 ---"
