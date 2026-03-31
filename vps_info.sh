@@ -28,11 +28,19 @@ echo "架构: $(uname -m)"
 
 echo ""
 echo "--- 内存使用 ---"
-free -h | awk 'NR==1{print $0} NR==2{print "总内存: " $3 "/" $2 " (" $5 ")"}'
+mem_total=$(free -h | awk 'NR==2{print $2}')
+mem_used=$(free -h | awk 'NR==2{print $3}')
+mem_free=$(free -h | awk 'NR==2{print $4}')
+echo "总内存: ${mem_used}/${mem_total}"
+echo "空闲内存: ${mem_free}"
 
 echo ""
 echo "--- 磁盘使用 ---"
-df -h / | awk 'NR==2{print "磁盘: " $3 "/" $2 " (" $5 ")"}'
+disk_total=$(df -h / | awk 'NR==2{print $2}')
+disk_used=$(df -h / | awk 'NR==2{print $3}')
+disk_usage=$(df -h / | awk 'NR==2{print $5}')
+echo "总磁盘: ${disk_used}/${disk_total}"
+echo "使用率: ${disk_usage}"
 
 echo ""
 echo "--- 网络信息 ---"
