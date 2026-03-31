@@ -69,8 +69,26 @@ if echo "$warp_api2" | grep -q '"private_key"' && echo "$warp_api2" | grep -q "2
 warp2_ok=1
 fi
 
+# 检测UDP 2408端口连通性
+udp_ok=0
+timeout 3 bash -c 'echo "test" | nc -u -w 2 engage.cloudflareclient.com 2408' >/dev/null 2>&1 && udp_ok=1
+
+# 检测是否有UDP出口限制
+udp_blocked=0
+if command -v iptables >/dev/null 2>&1; then
+if iptables -L OUTPUT 2>/dev/null | grep -q "udp.*REJECT\|udp.*DROP"; then
+udp_blocked=1
+fi
+fi
+
 if [ "$warp1_ok" = 1 ] || [ "$warp2_ok" = 1 ]; then
+if [ "$udp_ok" = 1 ] && [ "$udp_blocked" = 0 ]; then
 echo "套WARP: ✅"
+elif [ "$udp_blocked" = 1 ]; then
+echo "套WARP: ⚠️ UDP出口被iptables封锁"
+else
+echo "套WARP: ⚠️ 能获取密钥，但UDP 2408端口不可达"
+fi
 else
 echo "套WARP: ❌"
 fi
