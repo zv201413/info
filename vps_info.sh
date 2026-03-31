@@ -50,6 +50,58 @@ echo "总接收: ${rx_gb} GB"
 echo "总发送: ${tx_gb} GB"
 
 echo ""
+echo "--- UDP/端口检测 ---"
+echo "检测UDP 500端口 (WARP):"
+if command -v nc &>/dev/null; then
+    result=$(timeout 2 nc -zvu 162.159.192.1 500 2>&1)
+    if echo "$result" | grep -q "succeeded"; then
+        echo "✅ UDP 500 开放"
+    else
+        echo "❌ UDP 500 被封锁"
+    fi
+elif command -v python3 &>/dev/null; then
+    python3 -c "
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(2)
+try:
+    sock.sendto(b'test', ('162.159.192.1', 500))
+    data, addr = sock.recvfrom(1024)
+    print('✅ UDP 500 开放')
+except:
+    print('❌ UDP 500 被封锁')
+sock.close()
+" 2>/dev/null || echo "⚠️ 检测失败"
+else
+    echo "⚠️ 需要nc或python3进行检测"
+fi
+
+echo "检测UDP 4500端口 (WARP):"
+if command -v nc &>/dev/null; then
+    result=$(timeout 2 nc -zvu 162.159.192.1 4500 2>&1)
+    if echo "$result" | grep -q "succeeded"; then
+        echo "✅ UDP 4500 开放"
+    else
+        echo "❌ UDP 4500 被封锁"
+    fi
+elif command -v python3 &>/dev/null; then
+    python3 -c "
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(2)
+try:
+    sock.sendto(b'test', ('162.159.192.1', 4500))
+    data, addr = sock.recvfrom(1024)
+    print('✅ UDP 4500 开放')
+except:
+    print('❌ UDP 4500 被封锁')
+sock.close()
+" 2>/dev/null || echo "⚠️ 检测失败"
+else
+    echo "⚠️ 需要nc或python3进行检测"
+fi
+
+echo ""
 echo "--- 流媒体解锁检测 ---"
 echo "Netflix: $(curl -s -m 3 "https://www.netflix.com/" 2>/dev/null | grep -q "netflix" && echo "✅解锁" || echo "❌未解锁")"
 echo "ChatGPT: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/")"
