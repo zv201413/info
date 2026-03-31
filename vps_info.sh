@@ -52,13 +52,7 @@ echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.
 echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 
 echo ""
-echo "--- WARP/代理检测 ---"
-cf_http=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com")
-cf_api=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://www.cloudflare.com/cdn-cgi/trace")
-
-printf "%-27s %-12s %s\n" "检测Cloudflare常规访问:" "Cloudflare HTTP:" "$([ "$cf_http" = "200" ] && echo "✅ 可访问" || echo "❌ 不可访问 ($cf_http)")"
-printf "%-27s %-12s %s\n" "检测Cloudflare CDN API:" "Cloudflare API:" "$([ "$cf_api" = "200" ] && echo "✅ 可访问" || echo "❌ 不可访问 ($cf_api)")"
-
+echo "--- WARP API 检测 ---"
 warp_api1=$(curl -s -m 5 "https://warp.xijp.eu.org" 2>/dev/null)
 warp_api2=$(curl -s -m 5 "https://warp.cloudflare.now.cc/?run=register&format=sing-box" 2>/dev/null)
 
@@ -67,13 +61,8 @@ warp2_ok=0
 echo "$warp_api1" | grep -qE "Private_key|private_key" && warp1_ok=1
 echo "$warp_api2" | grep -q '"private_key"' && warp2_ok=1
 
-echo ""
-echo "--- WARP可用性判断 ---"
 if [ "$warp1_ok" = 1 ] || [ "$warp2_ok" = 1 ]; then
     echo "是否能套WARP: ✅ 可以"
-elif [ "$cf_api" = "200" ]; then
-    echo "是否能套WARP: ⚠️ 可能可以"
-    echo "说明: Cloudflare API可访问，但WARP API不可用"
 else
     echo "是否能套WARP: ❌ 不可以"
 fi
