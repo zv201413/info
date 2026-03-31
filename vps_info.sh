@@ -65,18 +65,9 @@ printf "%-27s %-12s %s\n" "检测WARP Endpoint IPv6:" "WARP IPv6:" "$([ "$warp_v
 
 echo ""
 echo "--- WARP可用性判断 ---"
-score=0
-[ "$cf_api" = "200" ] && ((score++))
-[ "$warp_v4" = "200" ] && ((score++))
-[ "$warp_v6" = "200" ] && ((score++))
-
-case $score in
-    3) mode="✅ 直接WireGuard (100%)";;
-    2) mode="✅ 直接WireGuard (80%)";;
-    1) mode="⚠️ Argo隧道可能 (50%)";;
-    0) mode="❌ 无法使用WARP";;
-esac
-echo "WARP模式: ${mode}"
+can_warp="❌"
+[ "$warp_v4" = "200" ] || [ "$warp_v6" = "200" ] && can_warp="✅"
+echo "是否能套WARP: ${can_warp}"
 
 echo ""
 echo "--- 流媒体解锁检测 ---"
