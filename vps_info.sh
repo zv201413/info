@@ -57,11 +57,21 @@ echo "拥堵算法: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || e
 
 echo ""
 echo "--- WARP/代理检测 ---"
-warp_status=$(curl -s -m 5 "https://ip.cloudflare.nyc.mn/" 2>/dev/null | grep -o '"warp":[true,false]' | cut -d: -f2)
-[ "$warp_status" = "true" ] && echo "WARP出站: ✅ 已通过WARP" || echo "WARP出站: ❌ 未通过WARP"
+echo "检测Cloudflare常规访问:"
+cf_code=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com")
+[ "$cf_code" = "200" ] && echo "Cloudflare HTTP: ✅ 可访问" || echo "Cloudflare HTTP: ❌ 不可访问 ($cf_code)"
 
-cf_connect=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://cloudflare.com/cdn-cgi/trace")
-[ "$cf_connect" = "200" ] && echo "Cloudflare: ✅ 可访问 (可套WARP)" || echo "Cloudflare: ❌ 不可访问"
+echo "检测Cloudflare CDN API:"
+cdn_code=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://www.cloudflare.com/cdn-cgi/trace")
+[ "$cdn_code" = "200" ] && echo "Cloudflare API: ✅ 可访问" || echo "Cloudflare API: ❌ 不可访问 ($cdn_code)"
+
+echo "检测WARP Endpoint IPv4:"
+warp_v4=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://162.159.192.1/cdn-cgi/trace" --resolve warp.cloudflare.com:443:162.159.192.1 2>/dev/null)
+[ "$warp_v4" = "200" ] && echo "WARP IPv4: ✅ 可连接" || echo "WARP IPv4: ❌ 无法连接"
+
+echo "检测WARP Endpoint IPv6:"
+warp_v6=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://[2606:4700:d0::a29f:c001]/cdn-cgi/trace" 2>/dev/null)
+[ "$warp_v6" = "200" ] && echo "WARP IPv6: ✅ 可连接" || echo "WARP IPv6: ❌ 无法连接"
 
 echo ""
 echo "--- 流媒体解锁检测 ---"
