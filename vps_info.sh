@@ -28,8 +28,10 @@ df -h / | awk 'NR==2{print "磁盘: " $3 "/" $2 " (" $5 ")"}'
 
 echo ""
 echo "--- 网络信息 ---"
-echo "公网IPv4: $(curl -s -m 2 ipv4.ip.sb 2>/dev/null || echo "获取失败")"
-echo "公网IPv6: $(curl -s -m 2 ipv6.ip.sb 2>/dev/null || echo "无")"
+ipv4=$(curl -s -m 2 ipv4.ip.sb 2>/dev/null || echo "获取失败")
+ipv6=$(curl -s -m 2 ipv6.ip.sb 2>/dev/null || echo "无")
+echo "公网IPv4: ${ipv4}"
+echo "公网IPv6: ${ipv6}"
 echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.io/country 2>/dev/null)"
 echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 
@@ -46,6 +48,20 @@ rx_gb=$(echo "scale=2; $rx_bytes/1024/1024/1024" | bc 2>/dev/null || echo "$rx_b
 tx_gb=$(echo "scale=2; $tx_bytes/1024/1024/1024" | bc 2>/dev/null || echo "$tx_bytes/1073741824" | bc -l 2>/dev/null)
 echo "总接收: ${rx_gb} GB"
 echo "总发送: ${tx_gb} GB"
+
+echo ""
+echo "--- 流媒体解锁检测 ---"
+echo "Netflix: $(curl -s -m 3 "https://www.netflix.com/" 2>/dev/null | grep -q "netflix" && echo "✅解锁" || echo "❌未解锁")"
+echo "ChatGPT: $(curl -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/")"
+echo "YouTube Premium: $(curl -s -m 3 "https://www.youtube.com/premium" 2>/dev/null | grep -q "Premium" && echo "✅" || echo "❌")"
+
+echo ""
+echo "--- WARP状态 ---"
+if command -v warp-cli &>/dev/null; then
+    warp-cli status 2>/dev/null | head -3
+else
+    echo "WARP未安装"
+fi
 
 echo ""
 echo "--- 当前用户 ---"
