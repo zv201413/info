@@ -64,42 +64,30 @@ echo "--- WARP API 可用性检测 ---"
 warp_api1=$(curl -s -m 5 "https://warp.xijp.eu.org" 2>/dev/null)
 warp_api2=$(curl -s -m 5 "https://warp.cloudflare.now.cc/?run=register&format=sing-box" 2>/dev/null)
 
-if echo "$warp_api1" | grep -qE "Private_key|private_key"; then
-warp1_status="✅ 可用"
-warp1_key=$(echo "$warp_api1" | grep -oP 'Private_key[：:]\s*\K\S+' | head -1)
-[ -z "$warp1_key" ] && warp1_key=$(echo "$warp_api1" | grep -oP '"private_key"\s*:\s*"\K[^"]+' | head -1)
-elif [ -n "$warp_api1" ]; then
-warp1_status="⚠️ 响应异常"
-else
-warp1_status="❌ 不可用"
-fi
+warp1_ok=0
+warp2_ok=0
+echo "$warp_api1" | grep -qE "Private_key|private_key" && warp1_ok=1
+echo "$warp_api2" | grep -q '"private_key"' && warp2_ok=1
 
-if echo "$warp_api2" | grep -q '"private_key"'; then
-warp2_status="✅ 可用"
-warp2_key=$(echo "$warp_api2" | grep -oP '"private_key"\s*:\s*"\K[^"]+')
+if [ "$warp1_ok" = 1 ] || [ "$warp2_ok" = 1 ]; then
+echo "套warp: ✅"
 else
-warp2_status="❌ 不可用"
+echo "套warp: ❌"
 fi
-
-printf "%-35s %s\n" "WARP API (warp.xijp.eu.org):" "$warp1_status"
-printf "%-35s %s\n" "WARP API (warp.cloudflare.now.cc):" "$warp2_status"
 
 echo ""
 echo "--- WARP可用性判断 ---"
 warp_available=0
-[ "$warp1_status" = "✅ 可用" ] && warp_available=1
-[ "$warp2_status" = "✅ 可用" ] && warp_available=1
+[ "$warp1_ok" = 1 ] && warp_available=1
+[ "$warp2_ok" = 1 ] && warp_available=1
 
 if [ "$warp_available" = 1 ]; then
 echo "是否能套WARP: ✅ 可以"
-echo "说明: 至少一个WARP API可正常获取密钥"
 elif [ "$cf_api" = "200" ]; then
 echo "是否能套WARP: ⚠️ 可能可以"
 echo "说明: Cloudflare API可访问，但WARP API不可用"
-echo "      可能是网络限制或API临时不可用"
 else
 echo "是否能套WARP: ❌ 不可以"
-echo "说明: 无法访问Cloudflare相关服务"
 fi
 
 echo ""
