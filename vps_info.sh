@@ -59,7 +59,15 @@ warp_country=$(echo "$warp_json" | grep -o '"country":"[^"]*"' | cut -d'"' -f4)
 warp_asn=$(echo "$warp_json" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
 warp_on=$(echo "$warp_json" | grep -o '"warp":[^,}]*' | cut -d':' -f2)
 
-if [ "$warp_on" = "true" ]; then
+asn_info=$(curl -s -m 3 "https://ipinfo.io/${ipv4}/json" 2>/dev/null)
+asn_org=$(echo "$asn_info" | grep -o '"org":"[^"]*"' | cut -d'"' -f4)
+
+if echo "$asn_org" | grep -qi "cloudflare"; then
+    echo "WARP状态: ✅ 已连接"
+    echo "WARP IP: ${ipv4}"
+    echo "地区: ${warp_country}"
+    echo "运营商: ${warp_asn}"
+elif [ "$warp_on" = "true" ]; then
     echo "WARP状态: ✅ 已连接"
     echo "WARP IP: ${warp_ip}"
     echo "地区: ${warp_country}"
