@@ -1,21 +1,19 @@
 #!/bin/bash
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  VPS 基础信息查询系统"
+echo " VPS 基础信息查询系统"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
 # 收集数据
+location="Unknown"
 hostname=$(hostname)
 
-# 运营商信息（精简版）
-ipv4_isp=$(curl -s4m 5 "https://ifconfig.co/country" 2>/dev/null || echo "Unknown")
-if [ "$ipv4_isp" != "Unknown" ]; then
-	location="$(curl -s4m 5 "https://ifconfig.co/city" 2>/dev/null || echo "Unknown")"
-else
-	location="Unknown"
-fi
 
+location="Unknown"
+
+# 地理位置（基于IPv4出口，延迟到网络检测后）
+location="Unknown"
 sys=$(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2)
 kernel=$(uname -r)
 arch=$(uname -m)
@@ -38,37 +36,36 @@ uptime_simple=$(echo "$uptime_raw" | sed 's/.*up\s*//' | sed 's/\s*day/天/' | s
 # 时间
 sys_time=$(date '+%Y-%m-%d %r')
 
-# 拥堵算法
+tcp_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "未获取")
+# 地理位置（基于IPv4）
 tcp_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "未获取")
 
 # 显示基础信息每个部分之间没有空行
 echo "-----------------------"
-printf "  主机名: %s\n" "$hostname"
-printf "  运营商: AS%s %s\n" "$ipv4_isp" "$location"
+printf " Linux版本: %s\n" "$kernel"
 echo "------------------------"
-printf "  系统版本: %s\n" "$sys"
-printf "  Linux版本: %s\n" "$kernel"
-echo "------------------------"
-printf "  CPU架构: %s\n" "$arch"
-printf "  CPU型号: %s\n" "$cpu_model"
-printf "  CPU核心数: %s\n" "$cpu_cores"
+printf " CPU架构: %s\n" "$arch"
+printf " CPU型号: %s\n" "$cpu_model"
+printf " CPU核心数: %s\n" "$cpu_cores"
 echo "------------------------"
 # 检查是否可以获取CPU占用
 if command -v top >/dev/null 2>&1; then
     cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1) 2>/dev/null || echo "0"
-    printf "  CPU占用: %s%%\n" "$cpu_usage"
+    printf " CPU占用: %s%%\n" "$cpu_usage"
 else
     echo "  CPU占用: 未获取"
 fi
-printf "  内存占用: %s/%s MB (%s)\n" "$mem_used" "$mem_total" "$mem_usage"
-printf "  硬盘占用: %s (已用) / %sGB (总计)\n" "$disk_usage%" "$(df -h / | awk 'NR==2{print $2}' | sed 's/G//')"
+printf " 内存占用: %s/%s MB (%s)\n" "$mem_used" "$mem_total" "$mem_usage"
+printf " 硬盘占用: %s (已用) / %sGB (总计)\n" "$disk_usage%" "$(df -h / | awk 'NR==2{print $2}' | sed 's/G//')"
 echo "------------------------"
-printf "  网络拥堵算法: %s\n" "$tcp_algo"
+printf " 网络拥堵算法: %s\n" "$tcp_algo"
+printf " 地理位置: %s\n" "$location"
+printf " 地理位置: %s
+" "$location"
 echo "------------------------"
-printf "  地理位置: %s\n" "$ipv4_isp $location"
-printf "  系统时间: %s\n" "$sys_time"
+printf " 系统时间: %s\n" "$sys_time"
 echo "------------------------"
-printf "  系统运行时长: %s\n" "$uptime_simple"
+printf " 系统运行时长: %s\n" "$uptime_simple"
 echo ""
 
 # 网络出口检测
@@ -86,6 +83,24 @@ if [ -n "$proxy_port" ]; then
 else
 	ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || echo "获取失败")
 	ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null)
+# 检测地理位置（基于IPv4）
+if [ -n "$ipv4_out" ] && [ "$ipv4_out" != "获取失败" ]; then
+  country1=$(curl -s4m 3 "https://ipinfo.io/$ipv4_out/country" 2>/dev/null | tr -d "
+")
+  city1=$(curl -s4m 3 "https://ipinfo.io/$ipv4_out/city" 2>/dev/null | tr -d "
+")
+  if [[ "$country1" =~ ^[A-Z]{2}$ ]] && [ -n "$country1" ]; then
+    location="$(echo "$city1" | sed "s/ /_/g" | cut -c1-20)"
+  else
+    country2=$(curl -s4m 3 "https://ipapi.co/$ipv4_out/country_name/" 2>/dev/null | tr -d "
+" | xargs)
+    city2=$(curl -s4m 3 "https://ipapi.co/$ipv4_out/city/" 2>/dev/null | tr -d "
+" | xargs)
+    if [[ ! "$country2" == *"<!DOCTYPE"* ]] && [[ ! "$country2" == *"<html"* ]] && [ -n "$country2" ]; then
+      location="$(echo "$city2" | sed "s/ /_/g" | cut -c1-20)"
+    fi
+  fi
+fi
 fi
 
 static_v6=""
@@ -143,7 +158,7 @@ elif [ "$warp_routing_working" = true ]; then
 else
 	echo "  配置文件: $target_config"
 	echo "  配置文件IPv6: $static_v6"
-	echo "  实际出站IPv6: ${ipv6_out} ✗ 与配置不匹配"
+echo "  实际出站IPv6: ${ipv6_out} ✗ 与配置不匹配"
 	echo "  状态: ❌ 未生效 (路由未指向隧道)"
 fi
 echo ""
