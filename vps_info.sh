@@ -68,13 +68,29 @@ echo "实际出口 IPv6: ${ipv6_out:-无}"
 
 echo ""
 echo "--- WARP 状态检测 ---"
-conf_path=$(ps aux 2>/dev/null | grep -E 'agsbx/(xray|sing-box|s|x)' | grep -oE '/[a-zA-Z0-9/_.-]+\.json' | head -n1)
-if [ -f "$conf_path" ]; then
-  ipv6=$(grep -oE '(2606:4700|2a09:bac)[0-9a-f:]+' "$conf_path" 2>/dev/null | head -n1)
-  [ -n "$ipv6" ] && echo "WARP状态: ✅ 已开启" || echo "WARP状态: ❌ 未开启"
+# 从所有进程命令行中提取 .json 配置文件路径
+all_configs=$(ps aux 2>/dev/null | grep -oE '/[a-zA-Z0-9/_.-]+\.json' | sort -u)
+warp_found=false
+target_config=""
+# 遍历查找包含 Cloudflare IPv6 的配置
+for conf in $all_configs; do
+  if [ -f "$conf" ]; then
+    ipv6_config=$(grep -oE '(2606:4700|2a09:bac)[0-9a-f:]+' "$conf" 2>/dev/null | head -n1)
+    if [ -n "$ipv6_config" ]; then
+      warp_found=true
+      target_config="$conf"
+      break
+    fi
+  fi
+done
+# 输出检测结果
+if [ "$warp_found" = true ]; then
+  echo "检测到运行配置: $target_config"
+  echo "WARP 状态: ✅ 已开启 (已识别 Cloudflare 隧道出站)"
 else
-  echo "WARP状态: ❌ 未找到配置文件"
+  echo "WARP 状态: ❌ 未找到包含 WARP 的配置文件"
 fi
+echo ""
 echo ""
 echo ""
 echo "--- 流媒体解锁检测 ---"
