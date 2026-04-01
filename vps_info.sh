@@ -60,7 +60,6 @@ printf " 硬盘占用: %s (已用) / %sGB (总计)\n" "$disk_usage%" "$(df -h / 
 echo "------------------------"
 printf " 网络拥堵算法: %s\n" "$tcp_algo"
 printf " 地理位置: %s\n" "$location"
-printf " 地理位置: %s
 " "$location"
 echo "------------------------"
 printf " 系统时间: %s\n" "$sys_time"
