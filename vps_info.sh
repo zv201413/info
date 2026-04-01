@@ -1,32 +1,77 @@
 #!/bin/bash
 
-# 核心函数：限制文本宽度以便对齐
-display_trim() {
-	local text="$1"
-	local max_len=$2
-	local len=${#text}
-	if [ $len -gt $max_len ]; then
-		echo "${text:0:max_len}"
-	else
-		printf "%-${max_len}s" "$text"
-	fi
-}
+echo "════════════════════════════════════════════════════════════════"
+echo "  VPS 基础信息查询系统"
+echo "════════════════════════════════════════════════════════════════"
+echo ""
 
 # 收集数据
 hostname=$(hostname)
-uptime_info=$(uptime -p 2>/dev/null | sed 's/up //' || uptime | sed 's/.*up //' | sed 's/,.*//')
+
+# 运营商信息（精简版）
+ipv4_isp=$(curl -s4m 5 "https://ifconfig.co/country" 2>/dev/null || echo "Unknown")
+if [ "$ipv4_isp" != "Unknown" ]; then
+	location="$(curl -s4m 5 "https://ifconfig.co/city" 2>/dev/null || echo "Unknown")"
+else
+	location="Unknown"
+fi
+
 sys=$(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2)
 kernel=$(uname -r)
 arch=$(uname -m)
+cpu_model=$(grep -m 1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs)
+if [ -z "$cpu_model" ]; then
+    cpu_model=$(grep -m 1 "cpu" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs)
+fi
+cpu_cores=$(nproc 2>/dev/null || grep -c "^processor" /proc/cpuinfo 2>/dev/null || echo "1")
 
-mem_total=$(free -h | awk 'NR==2{print $2}')
-mem_used=$(free -h | awk 'NR==2{print $3}')
-mem_free=$(free -h | awk 'NR==2{print $4}')
+# CPU/Memory/Disk
+mem_total=$(free -m | awk 'NR==2{print $2}')
+mem_used=$(free -m | awk 'NR==2{print $3}')
+mem_usage=$(free | awk 'NR==2{printf "%.1f%%", $3*100/$2}')
+disk_usage=$(df -h / | awk 'NR==2{print $5}' | sed 's/%//')
 
-disk_total=$(df -h / | awk 'NR==2{print $2}')
-disk_used=$(df -h / | awk 'NR==2{print $3}')
-disk_usage=$(df -h / | awk 'NR==2{print $5}')
+# 运行时间（简化格式）
+uptime_raw=$(uptime -p 2>/dev/null || uptime)
+uptime_simple=$(echo "$uptime_raw" | sed 's/.*up\s*//' | sed 's/\s*day/天/' | sed 's/\s*hour/时/' | sed 's/\s*minute/分/' | sed 's/,//g' | head -c 30)
 
+# 时间
+sys_time=$(date '+%Y-%m-%d %r')
+
+# 拥堵算法
+tcp_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "未获取")
+
+# 显示基础信息每个部分之间没有空行
+echo "-----------------------"
+printf "  主机名: %s\n" "$hostname"
+printf "  运营商: AS%s %s\n" "$ipv4_isp" "$location"
+echo "------------------------"
+printf "  系统版本: %s\n" "$sys"
+printf "  Linux版本: %s\n" "$kernel"
+echo "------------------------"
+printf "  CPU架构: %s\n" "$arch"
+printf "  CPU型号: %s\n" "$cpu_model"
+printf "  CPU核心数: %s\n" "$cpu_cores"
+echo "------------------------"
+# 检查是否可以获取CPU占用
+if command -v top >/dev/null 2>&1; then
+    cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1) 2>/dev/null || echo "0"
+    printf "  CPU占用: %s%%\n" "$cpu_usage"
+else
+    echo "  CPU占用: 未获取"
+fi
+printf "  内存占用: %s/%s MB (%s)\n" "$mem_used" "$mem_total" "$mem_usage"
+printf "  硬盘占用: %s (已用) / %sGB (总计)\n" "$disk_usage%" "$(df -h / | awk 'NR==2{print $2}' | sed 's/G//')"
+echo "------------------------"
+printf "  网络拥堵算法: %s\n" "$tcp_algo"
+echo "------------------------"
+printf "  地理位置: %s\n" "$ipv4_isp $location"
+printf "  系统时间: %s\n" "$sys_time"
+echo "------------------------"
+printf "  系统运行时长: %s\n" "$uptime_simple"
+echo ""
+
+# 网络出口检测
 proxy_port=""
 for port in 10808 10809 7890 7891 2080 2081 10080 10708; do
 	if curl -s4m 2 --socks5 "127.0.0.1:$port" "https://v4.ident.me" >/dev/null 2>&1; then
@@ -38,11 +83,9 @@ done
 if [ -n "$proxy_port" ]; then
 	ipv4_out=$(curl -s4m 5 --socks5 "127.0.0.1:$proxy_port" "https://v4.ident.me" 2>/dev/null)
 	ipv6_out=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://v6.ident.me" 2>/dev/null)
-	conn_type="代理端口: $proxy_port"
 else
 	ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || echo "获取失败")
 	ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null)
-	conn_type="直连"
 fi
 
 static_v6=""
@@ -73,90 +116,107 @@ for conf in $all_configs; do
 	fi
 done
 
-if [ "$warp_found" = false ]; then
-	warp_status="❌ 未找到配置文件"
-elif [ "$routing_bypassed" = true ]; then
-	warp_status="⚠️ 路由绕过隧道"
-elif [ "$warp_routing_working" = true ]; then
-	warp_status="✅ 生效 (WARP隧道)"
+echo "════════════════════════════════════════════════════════════════"
+echo "  网络出口信息"
+echo "════════════════════════════════════════════════════════════════"
+if [ -n "$proxy_port" ]; then
+	echo "  代理端口: $proxy_port"
 else
-	warp_status="❌ 未生效 (IP不匹配)"
+	echo "  连接方式: 直连"
+fi
+printf "  IPv4: %s\n" "$ipv4_out"
+printf "  IPv6: %s\n" "${ipv6_out:-无}"
+echo ""
+
+echo "════════════════════════════════════════════════════════════════"
+echo "  WARP 路由深度检测"
+echo "════════════════════════════════════════════════════════════════"
+if [ "$warp_found" = false ]; then
+	echo "  状态: ❌ 未找到WARP配置文件"
+elif [ "$routing_bypassed" = true ]; then
+	echo "  状态: ⚠️ 路由绕过WARP隧道"
+	echo "  配置文件: $target_config"
+elif [ "$warp_routing_working" = true ]; then
+	echo "  状态: ✅ 已生效 (流量通过WARP)"
+	echo "  配置文件IPv6: $static_v6"
+	echo "  实际出站IPv6: $ipv6_out ✓ 路由一致"
+else
+	echo "  配置文件: $target_config"
+	echo "  配置文件IPv6: $static_v6"
+	echo "  实际出站IPv6: ${ipv6_out} ✗ 与配置不匹配"
+	echo "  状态: ❌ 未生效 (路由未指向隧道)"
+fi
+echo ""
+
+echo "════════════════════════════════════════════════════════════════"
+echo "  流媒体/AI解锁检测 (IPv6强制)"
+echo "════════════════════════════════════════════════════════════════"
+if [ "$warp_routing_working" = true ] && [[ "$ipv6_out" == 2a09:bac* || "$ipv6_out" == 2606:4700* ]]; then
+	echo "  解锁来源: [WARP IPv6隧道]"
+else
+	echo "  解锁来源: [原生网络]"
 fi
 
-if [ "$warp_routing_working" = true ] && [[ "$ipv6_out" == 2a09:bac* || "$ipv6_out" == 2606:4700* ]]; then
-	unlock_source="WARP隧道"
-else
-	unlock_source="原生网络"
-fi
+echo ""
 
 netflix_code=$(curl -6 -s -m 5 -o /dev/null -w "%{http_code}" "https://www.netflix.com/" 2>/dev/null)
-netflix_status=$(if [[ "$netflix_code" == "200" || "$netflix_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
+if [[ "$netflix_code" == "200" || "$netflix_code" == "302" ]]; then
+	if [ "$warp_routing_working" = true ]; then
+		echo "  ✅ Netflix (WARP IPv6解锁)"
+	else
+		echo "  ✅ Netflix (原生网络解锁)"
+	fi
+elif [[ "$netflix_code" == "403" ]]; then
+	echo "  ❌ Netflix (禁止访问)"
+elif [[ "$netflix_code" == "000" ]]; then
+	echo "  ❌ Netflix (超时/不通)"
+else
+	echo "  ❌ Netflix"
+fi
 
 youtube_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://www.youtube.com/premium" 2>/dev/null)
-youtube_status=$(if [[ "$youtube_code" == "200" || "$youtube_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
+if [[ "$youtube_code" == "200" || "$youtube_code" == "302" ]]; then
+	echo "  ✅ YouTube Premium"
+else
+	echo "  ❌ YouTube"
+fi
 
 disney_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://www.disneyplus.com" 2>/dev/null)
-disney_status=$(if [[ "$disney_code" == "200" || "$disney_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
+if [[ "$disney_code" == "200" || "$disney_code" == "302" ]]; then
+	echo "  ✅ Disney+"
+else
+	echo "  ❌ Disney+"
+fi
 
 chatgpt_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/" 2>/dev/null)
-chatgpt_status=$(if [[ "$chatgpt_code" == "200" || "$chatgpt_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
+if [[ "$chatgpt_code" == "200" || "$chatgpt_code" == "302" ]]; then
+	echo "  ✅ ChatGPT"
+else
+	echo "  ❌ ChatGPT"
+fi
 
 gemini_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://gemini.google.com/" 2>/dev/null)
-gemini_status=$(if [[ "$gemini_code" == "200" || "$gemini_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
+if [[ "$gemini_code" == "200" || "$gemini_code" == "302" ]]; then
+	echo "  ✅ Gemini"
+else
+	echo "  ❌ Gemini"
+fi
 
 claude_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://claude.ai" 2>/dev/null)
-claude_status=$(if [[ "$claude_code" == "200" || "$claude_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
+if [[ "$claude_code" == "200" || "$claude_code" == "302" ]]; then
+	echo "  ✅ Claude"
+else
+	echo "  ❌ Claude"
+fi
 
 perplexity_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://www.perplexity.ai" 2>/dev/null)
-perplexity_status=$(if [[ "$perplexity_code" == "200" || "$perplexity_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)
-
-username=$(whoami)
-user_groups=$(id | sed 's/.*=//' | cut -d'(' -f1)
-
-# 显示结果
-clear
-
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo "                        VPS 基础信息查询系统 (v2.2 - 严格对齐版)"
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo ""
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo "  系统/硬件信息 $(printf '%-24s' '|') 内存/磁盘"
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "主机名: $hostname" 35)" "总内存: $mem_used/$mem_total"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "运行时间: $uptime_info" 35)" "空闲内存: $mem_free"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "系统: $sys" 35)" "总磁盘: $disk_used/$disk_total"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "内核: $kernel" 35)" "使用率: $disk_usage"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "架构: $arch" 35)" ""
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo ""
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo "  网络出口信息 $(printf '%-26s' '|') WARP 路由检测"
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "连接方式: $conn_type" 35)" "状态: $warp_status"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "IPv4: $ipv4_out" 35)" ""
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "IPv6: ${ipv6_out:-无}" 35)" ""
-if [ "$warp_found" = true ] && [ "$warp_routing_working" = false ] && [ -n "$static_v6" ]; then
-	printf "  %s $(printf '%-35s' '│') %s\n" "" "配置IP: $static_v6"
+if [[ "$perplexity_code" == "200" || "$perplexity_code" == "302" ]]; then
+	echo "  ✅ Perplexity"
+else
+	echo "  ❌ Perplexity"
 fi
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+
 echo ""
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo "  流媒体解锁信息 $(printf '%-24s' '|') AI服务解锁"
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-printf "  解锁来源: %-28s $(printf '%-23s' '│') %s\n" "$unlock_source" ""
-echo ""
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "Netflix: $netflix_status" 35)" "$(display_trim "ChatGPT: $chatgpt_status" 35)"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "YouTube: $youtube_status" 35)" "$(display_trim "Gemini: $gemini_status" 35)"
-printf "  %s $(printf '%-35s' '│') %s\n" "$(display_trim "Disney+: $disney_status" 35)" "$(display_trim "Claude: $claude_status" 35)"
-printf "  %s $(printf '%-35s' '│') %s\n" "" "$(display_trim "Perplexity: $perplexity_status" 35)"
-echo ""
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-printf "  备注: -6参数强制IPv6探测\n"
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo ""
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-printf "  用户名: %-30s $(printf '%-23s' '│')\n" "$username"
-printf "  权限组: %-30s $(printf '%-23s' '│')\n" "${user_groups:0:33}"
-echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
-echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo "                     检测完成"
+echo "════════════════════════════════════════════════════════════════"
