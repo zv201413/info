@@ -67,28 +67,15 @@ echo "实际出口 IPv4: ${ipv4_out:-获取失败}"
 echo "实际出口 IPv6: ${ipv6_out:-无}"
 
 echo ""
-echo "--- WARP状态检测 ---"
-warp_v6_trace=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null)
-if [ -z "$warp_v6_trace" ] && [ -n "$proxy_port" ]; then
-    warp_v6_trace=$(curl -s6m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null)
-fi
-
-v6_ip=$(echo "$warp_v6_trace" | awk -F'=' '/^ip/{print $2}')
-v6_status=$(echo "$warp_v6_trace" | awk -F'=' '/^warp/{print $2}')
-
-if [ -n "$v6_ip" ]; then
-    echo "WARP状态: ✅ 已开启 (IPv6隧道已打通)"
-    echo "实际出口IP: $v6_ip"
-    echo "服务等级: $v6_status"
+echo "--- WARP 状态检测 ---"
+conf_path=$(ps aux 2>/dev/null | grep -E 'agsbx/(xray|sing-box|s|x)' | grep -oE '/[a-zA-Z0-9/_.-]+\.json' | head -n1)
+if [ -f "$conf_path" ]; then
+  ipv6=$(grep -oE '(2606:4700|2a09:bac)[0-9a-f:]+' "$conf_path" 2>/dev/null | head -n1)
+  [ -n "$ipv6" ] && echo "WARP状态: ✅ 已开启" || echo "WARP状态: ❌ 未开启"
 else
-    warp_v4_status=$(curl -s4m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F'=' '/^warp/{print $2}')
-    if [[ "$warp_v4_status" == "on" || "$warp_v4_status" == "plus" ]]; then
-        echo "WARP状态: ✅ 已开启 (IPv4模式)"
-    else
-        echo "WARP状态: ❌ 未接入"
-    fi
+  echo "WARP状态: ❌ 未找到配置文件"
 fi
-
+echo ""
 echo ""
 echo "--- 流媒体解锁检测 ---"
 check_service "https://www.netflix.com/" "Netflix"
