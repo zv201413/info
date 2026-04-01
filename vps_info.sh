@@ -1,26 +1,20 @@
 #!/bin/bash
 
-# 收集所有数据（定义所有变量）
-# ─────────────────────────────────────────────────────────────────
-
-# 系统信息
+# 收集所有数据
 hostname=$(hostname)
 uptime_info=$(uptime -p 2>/dev/null | sed 's/up //' || uptime | sed 's/.*up //' | sed 's/,.*//')
 sys=$(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2)
 kernel=$(uname -r)
 arch=$(uname -m)
 
-# 内存信息
 mem_total=$(free -h | awk 'NR==2{print $2}')
 mem_used=$(free -h | awk 'NR==2{print $3}')
 mem_free=$(free -h | awk 'NR==2{print $4}')
 
-# 磁盘信息
 disk_total=$(df -h / | awk 'NR==2{print $2}')
 disk_used=$(df -h / | awk 'NR==2{print $3}')
 disk_usage=$(df -h / | awk 'NR==2{print $5}')
 
-# 网络信息
 proxy_port=""
 for port in 10808 10809 7890 7891 2080 2081 10080 10708; do
 	if curl -s4m 2 --socks5 "127.0.0.1:$port" "https://v4.ident.me" >/dev/null 2>&1; then
@@ -39,7 +33,6 @@ else
 	conn_type="直连"
 fi
 
-# WARP检测
 static_v6=""
 warp_found=false
 warp_routing_working=false
@@ -68,49 +61,6 @@ for conf in $all_configs; do
 	fi
 done
 
-# 用户信息
-username=$(whoami)
-user_groups=$(id | sed 's/.*=//')
-
-# 解锁检测
-if [ "$warp_routing_working" = true ] && [[ "$ipv6_out" == 2a09:bac* || "$ipv6_out" == 2606:4700* ]]; then
-	unlock_source="[WARP隧道]"
-else
-	unlock_source="[原生网络]"
-fi
-
-# 显示所有数据（使用表格格式）
-# ─────────────────────────────────────────────────────────────────
-
-clear
-
-echo "╔═══════════════════════════════════════════════════════════════════════════════════════════════╗"
-echo "║ VPS 基础信息查询系统（v2.0 - 智能路由校验版） ║"
-echo "╚═══════════════════════════════════════════════════════════════════════════════════════════════╝"
-echo ""
-echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
-echo "┃ 系统/硬件信息                          ┃ 内存/磁盘状态                        ┃"
-echo "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩"
-printf "│ 主机名: %-20s│ 总内存: %-18s │\n" "$hostname" "$mem_used/$mem_total"
-printf "│ 运行时间: %-16s│ 空闲内存: %-16s │\n" "$uptime_info" "$mem_free"
-printf "│ 系统: %-22s│ 总磁盘: %-17s │\n" "${sys:0:20}" "$disk_used/$disk_total"
-printf "│ 内核: %-22s│ 使用率: %-18s │\n" "${kernel:0:22}" "$disk_usage"
-printf "│ 架构: %-22s│                            │\n" "$arch"
-echo "└─────────────────────────────┴────────────────────────────┘"
-echo ""
-
-# 中间网络信息
-width=40
-ipv6_display=${ipv6_out:-无}
-echo "┌─ 网络出口信息 ─────────────────────────┐"
-printf "│ 连接方式: %-29s │\n" "$conn_type"
-printf "│ IPv4: %-33s │\n" "$ipv4_out"
-printf "│ IPv6: %-33s │\n" "${ipv6_display:0:25}"
-echo "└────────────────────────────────────────┘"
-echo ""
-
-# WARP检测
-config_display=$(basename "$target_config" 2>/dev/null || echo "无")
 if [ "$warp_found" = false ]; then
 	warp_status="❌ 未找到配置文件"
 elif [ "$routing_bypassed" = true ]; then
@@ -121,91 +71,80 @@ else
 	warp_status="❌ 未生效 (IP不匹配)"
 fi
 
-echo "┌─ WARP 路由检测 ────────────────────────┐"
-if [ "$warp_found" = true ]; then
-	printf "│ 配置文件: %-27s │\n" "${config_display:0:25}"
-	printf "│ 配置文件IP: %25s │\n" "${static_v6:0:25}"
-	printf "│ 实际出站IP: %-25s │\n" "${ipv6_display:0:25}"
-fi
-printf "│ 状态: %-32s │\n" "$warp_status"
-echo "└────────────────────────────────────────┘"
-echo ""
-
-# 流媒体/AI解锁
-echo "┌─ 流媒体/AI解锁检测 ───────────────────┐"
-printf "│ 解锁来源: %-28s │\n" "$unlock_source"
-echo "│                                      │"
-netflix_result=$(curl -6 -s -m 5 -o /dev/null -w "%{http_code}" "https://www.netflix.com/" 2>/dev/null)
-if [[ "$netflix_result" == "200" || "$netflix_result" == "302" ]]; then
-	if [ "$warp_routing_working" = true ]; then
-		netflix_status="✅ Netflix (WARP解锁)"
-	else
-		netflix_status="✅ Netflix (原生解锁)"
-	fi
+if [ "$warp_routing_working" = true ] && [[ "$ipv6_out" == 2a09:bac* || "$ipv6_out" == 2606:4700* ]]; then
+	unlock_source="WARP隧道"
 else
-	netflix_status="❌ Netflix"
+	unlock_source="原生网络"
 fi
+
+netflix_code=$(curl -6 -s -m 5 -o /dev/null -w "%{http_code}" "https://www.netflix.com/" 2>/dev/null)
+netflix_status="$(if [[ "$netflix_code" == "200" || "$netflix_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
 youtube_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://www.youtube.com/premium" 2>/dev/null)
-if [[ "$youtube_code" == "200" || "$youtube_code" == "302" ]]; then
-	youtube_status="✅ YouTube"
-else
-	youtube_status="❌ YouTube"
-fi
+youtube_status="$(if [[ "$youtube_code" == "200" || "$youtube_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
 disney_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://www.disneyplus.com" 2>/dev/null)
-if [[ "$disney_code" == "200" || "$disney_code" == "302" ]]; then
-	disney_status="✅ Disney+"
-else
-	disney_status="❌ Disney+"
-fi
+disney_status="$(if [[ "$disney_code" == "200" || "$disney_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
 chatgpt_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://chat.openai.com/" 2>/dev/null)
-if [[ "$chatgpt_code" == "200" || "$chatgpt_code" == "302" ]]; then
-	chatgpt_status="✅ ChatGPT"
-else
-	chatgpt_status="❌ ChatGPT"
-fi
+chatgpt_status="$(if [[ "$chatgpt_code" == "200" || "$chatgpt_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
 gemini_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://gemini.google.com/" 2>/dev/null)
-if [[ "$gemini_code" == "200" || "$gemini_code" == "302" ]]; then
-	gemini_status="✅ Gemini"
-else
-	gemini_status="❌ Gemini"
-fi
+gemini_status="$(if [[ "$gemini_code" == "200" || "$gemini_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
 claude_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://claude.ai" 2>/dev/null)
-if [[ "$claude_code" == "200" || "$claude_code" == "302" ]]; then
-	claude_status="✅ Claude"
-else
-	claude_status="❌ Claude"
-fi
+claude_status="$(if [[ "$claude_code" == "200" || "$claude_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
 perplexity_code=$(curl -6 -s -m 3 -o /dev/null -w "%{http_code}" "https://www.perplexity.ai" 2>/dev/null)
-if [[ "$perplexity_code" == "200" || "$perplexity_code" == "302" ]]; then
-	perplexity_status="✅ Perplexity"
-else
-	perplexity_status="❌ Perplexity"
-fi
+perplexity_status="$(if [[ "$perplexity_code" == "200" || "$perplexity_code" == "302" ]]; then echo "✅"; else echo "❌"; fi)"
 
-printf "│ 流媒体: %-28s │\n" "$netflix_status"
-printf "│        %-28s │\n" "$youtube_status"
-printf "│        %-28s │\n" "$disney_status"
-echo "│                                      │"
-printf "│ AI服务: %-28s │\n" "$chatgpt_status"
-printf "│        %-28s │\n" "$gemini_status"
-printf "│        %-28s │\n" "$claude_status"
-printf "│        %-28s │\n" "$perplexity_status"
-echo "├──────────────────────────────────────┤"
-echo "│ 备注: -6参数强制IPv6探测              │"
-echo "└──────────────────────────────────────┘"
-echo ""
+username=$(whoami)
+user_groups=$(id | sed 's/.*=//')
 
-# 用户
-echo "┌─ 用户身份 ───────────────────────────┐"
-printf "│ 用户名: %-29s │\n" "$username"
-printf "│ 权限组: %-29s │\n" "$user_groups"
-echo "└──────────────────────────────────────┘"
-echo ""
+# 显示结果 - 极简两列对齐
+clear
 
 echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo "  VPS 基础信息查询系统（v2.1 - 极简对齐版）"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo "  系统信息                                  │  内存/磁盘状态"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+printf "  主机名: %-23s │  总内存: %-18s\n" "$hostname" "$mem_used/$mem_total"
+printf "  运行时间: %-21s │  空闲内存: %-16s\n" "$uptime_info" "$mem_free"
+printf "  系统: %-25s │  总磁盘: %-17s\n" "${sys:0:22}" "$disk_used/$disk_total"
+printf "  内核: %-25s │  使用率: %-18s\n" "${kernel:0:22}" "$disk_usage"
+printf "  架构: %-25s │\n" "$arch"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo "  网络出口                                  │  WARP 路由检测"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+printf "  连接方式: %-24s │  状态: %-18s\n" "$conn_type" "$warp_status"
+printf "  IPv4: %-29s │\n" "$ipv4_out"
+printf "  IPv6: %-29s │\n" "${ipv6_out:-无}"
+if [ "$warp_found" = true ] && [ "$warp_routing_working" = false ] && [ -n "$static_v6" ]; then
+	printf "                                  │  配置文件IPv6: %s\n" "$static_v6"
+fi
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo "  流媒体解锁                                │  AI服务解锁"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+printf "  解锁来源: [%-13s ] │\n" "$unlock_source"
+printf "\n"
+printf "  Netflix: %-16s │  ChatGPT: %-16s\n" "$netflix_status" "$chatgpt_status"
+printf "  YouTube: %-16s │  Gemini: %-17s\n" "$youtube_status" "$gemini_status"
+printf "  Disney+: %-16s │  Claude: %-17s\n" "$disney_status" "$claude_status"
+printf "                                  │  Perplexity: %-12s\n" "$perplexity_status"
+printf "\n"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+printf "  备注: -6参数强制IPv6探测\n"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+printf "  用户名: %-28s │\n" "$username"
+printf "  权限组: %-28s │\n" "${user_groups:0:35}"
+echo "═══════════════════════════════════════════════════════════════════════════════════════════════"
+echo ""
