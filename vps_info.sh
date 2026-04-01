@@ -13,6 +13,11 @@ check_service() {
     esac
 }
 
+check_proxy() {
+    local proxy=$1
+    curl -s4m 5 --socks5 "$proxy" "https://v4.ident.me" 2>/dev/null
+}
+
 echo "=== VPS 基础信息查询 ==="
 echo ""
 
@@ -44,21 +49,38 @@ echo "使用率: ${disk_usage}"
 
 echo ""
 echo "--- 网络出口信息 (Ping0.cc模式) ---"
-ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || echo "获取失败")
-echo "实际出口 IPv4: ${ipv4_out}"
 
-ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null)
-if [ -z "$ipv6_out" ]; then
-    ipv6_out=$(curl -s6m 5 "https://api64.ipify.org" 2>/dev/null)
+echo "检测代理端口..."
+proxy_port=""
+for port in 10808 10809 7890 7891 2080 2081 10080 10708; do
+    if check_proxy "127.0.0.1:$port" >/dev/null 2>&1; then
+        proxy_port="$port"
+        break
+    fi
+done
+
+if [ -n "$proxy_port" ]; then
+    echo "检测到代理端口: ${proxy_port}"
+    ipv4_out=$(check_proxy "127.0.0.1:$proxy_port")
+    ipv6_out=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://v6.ident.me" 2>/dev/null)
+    if [ -z "$ipv6_out" ]; then
+        ipv6_out=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://api64.ipify.org" 2>/dev/null)
+    fi
+else
+    echo "未检测到代理，使用直连"
+    ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || echo "获取失败")
+    ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null)
 fi
+
+echo "实际出口 IPv4: ${ipv4_out:-获取失败}"
 echo "实际出口 IPv6: ${ipv6_out:-无}"
 
 echo ""
 echo "--- WARP状态判定 ---"
 if [[ "$ipv6_out" == 2606:4700* ]] || [[ "$ipv6_out" == 2a09:bac* ]]; then
     echo "WARP状态: ✅ 已开启 (探测到真实WARP出口)"
-    warp_loc=$(curl -s6m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F= '/^loc/{print $2}')
-    echo "出口地区: ${warp_loc:-未知}"
+    warp_loc=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F= '/^loc/{print $2}' || echo "未知")
+    echo "出口地区: ${warp_loc}"
 else
     echo "WARP状态: ❌ 未接入"
 fi
