@@ -52,48 +52,6 @@ echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.
 echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 
 echo ""
-echo "--- WARP可用性检测 ---"
-warp_api1=$(curl -s -m 5 "https://warp.xijp.eu.org" 2>/dev/null)
-warp_api2=$(curl -s -m 5 "https://warp.cloudflare.now.cc/?run=register&format=sing-box" 2>/dev/null)
-
-warp1_ok=0
-warp2_ok=0
-
-# 检查API1：需包含Private_key、IPV6、reserved三个字段
-if echo "$warp_api1" | grep -qE "Private_key|private_key" && echo "$warp_api1" | grep -q "2606:4700" && echo "$warp_api1" | grep -qi "reserved"; then
-warp1_ok=1
-fi
-
-# 检查API2：需包含private_key、IPv6地址、reserved三个字段
-if echo "$warp_api2" | grep -q '"private_key"' && echo "$warp_api2" | grep -q "2606:4700" && echo "$warp_api2" | grep -q '"reserved"'; then
-warp2_ok=1
-fi
-
-# 检测UDP 2408端口连通性
-udp_ok=0
-timeout 3 bash -c 'echo "test" | nc -u -w 2 engage.cloudflareclient.com 2408' >/dev/null 2>&1 && udp_ok=1
-
-# 检测是否有UDP出口限制
-udp_blocked=0
-if command -v iptables >/dev/null 2>&1; then
-if iptables -L OUTPUT 2>/dev/null | grep -q "udp.*REJECT\|udp.*DROP"; then
-udp_blocked=1
-fi
-fi
-
-if [ "$warp1_ok" = 1 ] || [ "$warp2_ok" = 1 ]; then
-if [ "$udp_ok" = 1 ] && [ "$udp_blocked" = 0 ]; then
-echo "套WARP: ✅"
-elif [ "$udp_blocked" = 1 ]; then
-echo "套WARP: ⚠️ UDP出口被iptables封锁"
-else
-echo "套WARP: ⚠️ 能获取密钥，但UDP 2408端口不可达"
-fi
-else
-echo "套WARP: ❌"
-fi
-
-echo ""
 echo "--- 流媒体解锁检测 ---"
 check_service "https://www.netflix.com/" "Netflix"
 check_service "https://chat.openai.com/" "ChatGPT"
