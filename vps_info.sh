@@ -46,34 +46,31 @@ echo ""
 echo "--- 网络信息 ---"
 ipv4=$(curl -s -m 2 ipv4.ip.sb 2>/dev/null || echo "获取失败")
 ipv6=$(curl -s -m 2 ipv6.ip.sb 2>/dev/null || echo "无")
-echo "公网IPv4: ${ipv4}"
-echo "公网IPv6: ${ipv6}"
-echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.io/country 2>/dev/null)"
-echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
-
-echo ""
-echo "--- WARP出站检测 ---"
-warp_json=$(curl -s -m 5 "https://ip.cloudflare.nyc.mn/" 2>/dev/null)
-warp_ip=$(echo "$warp_json" | grep -o '"ip":"[^"]*"' | cut -d'"' -f4)
-warp_country=$(echo "$warp_json" | grep -o '"country":"[^"]*"' | cut -d'"' -f4)
-warp_asn=$(echo "$warp_json" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
-warp_on=$(echo "$warp_json" | grep -o '"warp":[^,}]*' | cut -d':' -f2)
+echo "VPS原始IP: ${ipv4}"
 
 asn_info=$(curl -s -m 3 "https://ipinfo.io/${ipv4}/json" 2>/dev/null)
 asn_org=$(echo "$asn_info" | grep -o '"org":"[^"]*"' | cut -d'"' -f4)
+echo "运营商: ${asn_org}"
 
-if echo "$asn_org" | grep -qi "cloudflare"; then
-    echo "WARP状态: ✅ 已连接"
-    echo "WARP IP: ${ipv4}"
-    echo "地区: ${warp_country}"
-    echo "运营商: ${warp_asn}"
-elif [ "$warp_on" = "true" ]; then
-    echo "WARP状态: ✅ 已连接"
-    echo "WARP IP: ${warp_ip}"
-    echo "地区: ${warp_country}"
-    echo "运营商: ${warp_asn}"
+echo ""
+echo "--- WARP出站检测 ---"
+cf_ip=$(curl -s -m 3 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F '=' '/^ip/{print $2}')
+cf_warp=$(curl -s -m 3 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F '=' '/^warp/{print $2}')
+cf_loc=$(curl -s -m 3 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F '=' '/^loc/{print $2}')
+cf_isp=$(curl -s -m 3 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F '=' '/^isp/{print $2}')
+
+if [ -n "$cf_ip" ]; then
+    if [ "$cf_warp" = "true" ]; then
+        echo "WARP状态: ✅ 已连接"
+        echo "出口IP: ${cf_ip}"
+        echo "地区: ${cf_loc}"
+        echo "运营商: ${cf_isp}"
+    else
+        echo "WARP状态: ❌ 未通过WARP出站"
+        echo "出口IP: ${cf_ip}"
+    fi
 else
-    echo "WARP状态: ❌ 未通过WARP出站"
+    echo "WARP状态: ⚠️ 检测失败"
 fi
 
 echo ""
