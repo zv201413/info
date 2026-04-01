@@ -43,33 +43,24 @@ echo "总磁盘: ${disk_used}/${disk_total}"
 echo "使用率: ${disk_usage}"
 
 echo ""
-echo "--- 网络出口信息 (实时探测) ---"
-ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || curl -s4m 5 "https://api.ip.sb/ip" 2>/dev/null)
-echo "实际出口 IPv4: ${ipv4_out:-获取失败}"
+echo "--- 网络出口信息 (Ping0.cc模式) ---"
+ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || echo "获取失败")
+echo "实际出口 IPv4: ${ipv4_out}"
 
-ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null || curl -s6m 5 "https://api.ipify.org" 2>/dev/null || echo "无")
-echo "实际出口 IPv6: ${ipv6_out}"
+ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null)
+if [ -z "$ipv6_out" ]; then
+    ipv6_out=$(curl -s6m 5 "https://api64.ipify.org" 2>/dev/null)
+fi
+echo "实际出口 IPv6: ${ipv6_out:-无}"
 
 echo ""
-echo "--- WARP/IP质量识别 ---"
+echo "--- WARP状态判定 ---"
 if [[ "$ipv6_out" == 2606:4700* ]] || [[ "$ipv6_out" == 2a09:bac* ]]; then
-    echo "WARP状态: ✅ 已开启 (探测到Cloudflare隧道地址)"
-    echo "出口归属: Cloudflare WARP Service"
+    echo "WARP状态: ✅ 已开启 (探测到真实WARP出口)"
+    warp_loc=$(curl -s6m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F= '/^loc/{print $2}')
+    echo "出口地区: ${warp_loc:-未知}"
 else
     echo "WARP状态: ❌ 未接入"
-fi
-
-if [ "$ipv4_out" != "获取失败" ]; then
-    ip_data=$(curl -s -m 5 "http://ip-api.com/json/${ipv4_out}?fields=status,isp,as,hosting")
-    isp=$(echo "$ip_data" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
-    is_idc=$(echo "$ip_data" | grep -o '"hosting":[^,}]*' | cut -d':' -f2)
-
-    echo "运营商: ${isp:-未知}"
-    if [ "$is_idc" = "true" ]; then
-        echo "IP类型: 🏢 IDC机房 (数据中心)"
-    else
-        echo "IP类型: 🏠 原生/住宅 (ISP)"
-    fi
 fi
 
 echo ""
