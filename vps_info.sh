@@ -43,40 +43,33 @@ echo "总磁盘: ${disk_used}/${disk_total}"
 echo "使用率: ${disk_usage}"
 
 echo ""
-echo "--- 网络出口信息 ---"
-trace4=$(curl -s4m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null)
-trace6=$(curl -s6m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null)
+echo "--- 网络出口信息 (实时探测) ---"
+ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || curl -s4m 5 "https://api.ip.sb/ip" 2>/dev/null)
+echo "实际出口 IPv4: ${ipv4_out:-获取失败}"
 
-ipv4_addr=$(echo "$trace4" | awk -F'=' '/^ip/{print $2}')
-ipv6_addr=$(echo "$trace6" | awk -F'=' '/^ip/{print $2}')
-warp_status=$(echo "$trace4$trace6" | grep -E "warp=on|warp=plus" | head -n1)
-
-echo "IPv4地址: ${ipv4_addr:-获取失败}"
-echo "IPv6地址: ${ipv6_addr:-无}"
+ipv6_out=$(curl -s6m 5 "https://v6.ident.me" 2>/dev/null || curl -s6m 5 "https://api.ipify.org" 2>/dev/null || echo "无")
+echo "实际出口 IPv6: ${ipv6_out}"
 
 echo ""
-echo "--- WARP状态 (深度识别) ---"
-if [ -n "$warp_status" ]; then
-    warp_mode=$(echo "$warp_status" | cut -d= -f2)
-    echo "WARP状态: ✅ 已开启 (模式: ${warp_mode})"
-elif [[ "$ipv6_addr" == 2606:4700* ]] || [[ "$ipv6_addr" == 2a09:bac* ]]; then
-    echo "WARP状态: ✅ 已开启 (通过IPv6隧道出口)"
+echo "--- WARP/IP质量识别 ---"
+if [[ "$ipv6_out" == 2606:4700* ]] || [[ "$ipv6_out" == 2a09:bac* ]]; then
+    echo "WARP状态: ✅ 已开启 (探测到Cloudflare隧道地址)"
+    echo "出口归属: Cloudflare WARP Service"
 else
     echo "WARP状态: ❌ 未接入"
 fi
 
-echo ""
-echo "--- IP质量及解锁 ---"
-asn_info=$(curl -s -m 3 "https://ipapi.co/${ipv4_addr}/json/" 2>/dev/null)
-asn_org=$(echo "$asn_info" | grep -o '"org":"[^"]*"' | cut -d'"' -f4)
-echo "出口运营商: ${asn_org:-未知}"
+if [ "$ipv4_out" != "获取失败" ]; then
+    ip_data=$(curl -s -m 5 "http://ip-api.com/json/${ipv4_out}?fields=status,isp,as,hosting")
+    isp=$(echo "$ip_data" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
+    is_idc=$(echo "$ip_data" | grep -o '"hosting":[^,}]*' | cut -d':' -f2)
 
-if echo "$asn_org" | grep -Ei "Hetzner|OVH|DigitalOcean|Amazon|Google|Microsoft|Akamai" >/dev/null 2>&1; then
-    echo "IP类型: 🏢 IDC机房IP (风控偏高)"
-elif echo "$asn_org" | grep -qi "cloudflare"; then
-    echo "IP类型: ☁️ Cloudflare (WARP出口)"
-else
-    echo "IP类型: 🏠 原生/住宅级IP (风控较低)"
+    echo "运营商: ${isp:-未知}"
+    if [ "$is_idc" = "true" ]; then
+        echo "IP类型: 🏢 IDC机房 (数据中心)"
+    else
+        echo "IP类型: 🏠 原生/住宅 (ISP)"
+    fi
 fi
 
 echo ""
