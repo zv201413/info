@@ -52,6 +52,23 @@ echo "地区: $(curl -s -m 2 ipinfo.io/city 2>/dev/null), $(curl -s -m 2 ipinfo.
 echo "运营商: $(curl -s -m 2 ipinfo.io/org 2>/dev/null)"
 
 echo ""
+echo "--- WARP出站检测 ---"
+warp_json=$(curl -s -m 5 "https://ip.cloudflare.nyc.mn/" 2>/dev/null)
+warp_ip=$(echo "$warp_json" | grep -o '"ip":"[^"]*"' | cut -d'"' -f4)
+warp_country=$(echo "$warp_json" | grep -o '"country":"[^"]*"' | cut -d'"' -f4)
+warp_asn=$(echo "$warp_json" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
+warp_on=$(echo "$warp_json" | grep -o '"warp":[^,}]*' | cut -d':' -f2)
+
+if [ "$warp_on" = "true" ]; then
+    echo "WARP状态: ✅ 已连接"
+    echo "WARP IP: ${warp_ip}"
+    echo "地区: ${warp_country}"
+    echo "运营商: ${warp_asn}"
+else
+    echo "WARP状态: ❌ 未通过WARP出站"
+fi
+
+echo ""
 echo "--- 流媒体解锁检测 ---"
 check_service "https://www.netflix.com/" "Netflix"
 check_service "https://chat.openai.com/" "ChatGPT"
