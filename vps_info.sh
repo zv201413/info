@@ -13,11 +13,6 @@ check_service() {
     esac
 }
 
-check_proxy() {
-    local proxy=$1
-    curl -s4m 5 --socks5 "$proxy" "https://v4.ident.me" 2>/dev/null
-}
-
 echo "=== VPS 基础信息查询 ==="
 echo ""
 
@@ -49,11 +44,10 @@ echo "使用率: ${disk_usage}"
 
 echo ""
 echo "--- 网络出口信息 (Ping0.cc模式) ---"
-
 echo "检测代理端口..."
 proxy_port=""
 for port in 10808 10809 7890 7891 2080 2081 10080 10708; do
-    if check_proxy "127.0.0.1:$port" >/dev/null 2>&1; then
+    if curl -s4m 2 --socks5 "127.0.0.1:$port" "https://v4.ident.me" >/dev/null 2>&1; then
         proxy_port="$port"
         break
     fi
@@ -61,11 +55,8 @@ done
 
 if [ -n "$proxy_port" ]; then
     echo "检测到代理端口: ${proxy_port}"
-    ipv4_out=$(check_proxy "127.0.0.1:$proxy_port")
+    ipv4_out=$(curl -s4m 5 --socks5 "127.0.0.1:$proxy_port" "https://v4.ident.me" 2>/dev/null)
     ipv6_out=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://v6.ident.me" 2>/dev/null)
-    if [ -z "$ipv6_out" ]; then
-        ipv6_out=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://api64.ipify.org" 2>/dev/null)
-    fi
 else
     echo "未检测到代理，使用直连"
     ipv4_out=$(curl -s4m 5 "https://v4.ident.me" 2>/dev/null || echo "获取失败")
@@ -76,13 +67,26 @@ echo "实际出口 IPv4: ${ipv4_out:-获取失败}"
 echo "实际出口 IPv6: ${ipv6_out:-无}"
 
 echo ""
-echo "--- WARP状态判定 ---"
-if [[ "$ipv6_out" == 2606:4700* ]] || [[ "$ipv6_out" == 2a09:bac* ]]; then
-    echo "WARP状态: ✅ 已开启 (探测到真实WARP出口)"
-    warp_loc=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F= '/^loc/{print $2}' || echo "未知")
-    echo "出口地区: ${warp_loc}"
+echo "--- WARP状态检测 ---"
+warp_v6_trace=$(curl -s6m 5 --socks5 "127.0.0.1:$proxy_port" "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null)
+if [ -z "$warp_v6_trace" ] && [ -n "$proxy_port" ]; then
+    warp_v6_trace=$(curl -s6m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null)
+fi
+
+v6_ip=$(echo "$warp_v6_trace" | awk -F'=' '/^ip/{print $2}')
+v6_status=$(echo "$warp_v6_trace" | awk -F'=' '/^warp/{print $2}')
+
+if [ -n "$v6_ip" ]; then
+    echo "WARP状态: ✅ 已开启 (IPv6隧道已打通)"
+    echo "实际出口IP: $v6_ip"
+    echo "服务等级: $v6_status"
 else
-    echo "WARP状态: ❌ 未接入"
+    warp_v4_status=$(curl -s4m 5 "https://www.cloudflare.com/cdn-cgi/trace" 2>/dev/null | awk -F'=' '/^warp/{print $2}')
+    if [[ "$warp_v4_status" == "on" || "$warp_v4_status" == "plus" ]]; then
+        echo "WARP状态: ✅ 已开启 (IPv4模式)"
+    else
+        echo "WARP状态: ❌ 未接入"
+    fi
 fi
 
 echo ""
