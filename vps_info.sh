@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -9,97 +10,74 @@ CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e "  🛡️  VPS 基本信息"
+echo -e "  🛡️  VPS 基础信息"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
-# 1. 双保险：首先尝试安装 iproute2
-echo -n -e "${YELLOW}[系统环境]${PLAIN} 正在检查/安装依赖... "
-if ! command -v ip &> /dev/null; then
-    if command -v apt-get &> /dev/null; then
-        apt-get update -qq && apt-get install -y -qq iproute2 &> /dev/null
-    elif command -v yum &> /dev/null; then
-        yum install -y -q iproute &> /dev/null
-    elif command -v apk &> /dev/null; then
-        apk add iproute2 &> /dev/null
-    fi
-fi
-
-if command -v ip &> /dev/null; then
-    echo -e "${GREEN}iproute2 已就绪${PLAIN}"
-else
-    echo -e "${RED}安装失败，将切换至 /proc 底层检测模式${PLAIN}"
-fi
-
-# 2. 硬件摘要
+# 1. 硬件基础信息 (兼容各种受限环境)
 cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
-echo -e "${YELLOW}[硬件摘要]${PLAIN} CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN}"
+[ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
+mem_total=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
+disk_usage=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}')
+
+echo -e "${YELLOW}[硬件基础配置]${PLAIN}"
+echo -e "CPU 型号: ${CYAN}${cpu_model:-"未知处理器"}${PLAIN}"
+echo -e "物理内存: ${GREEN}${mem_total:-"未知"}MB${PLAIN} | 磁盘占用: ${GREEN}${disk_usage:-"未知"}${PLAIN}"
 echo -e "----------------------------------------------------------------"
 
-# 3. 网络与 WARP 路由审计 (双保险检测)
+# 2. 网络出站与 WARP 状态
 echo -e "${YELLOW}[网络出站与路由审计]${PLAIN}"
-
-# 检测网卡 (优先 ip link, 备选 /proc/net/dev)
 if command -v ip &> /dev/null; then
-    iface=$(ip -6 route show default | awk '{print $5}' | head -n1)
-    [ -z "$iface" ] && iface=$(ip route show default | awk '{print $5}' | head -n1)
+    iface=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $5; exit}')
     warp_iface=$(ip link show | grep -E "wgcf|warp|cloudflared" | awk -F': ' '{print $2}' | head -n1)
 else
     iface=$(awk '{if($2==00000000) print $1}' /proc/net/route | head -n1)
-    warp_iface=$(grep -E "wgcf|warp|cloudflared" /proc/net/dev | cut -d':' -f1 | xargs | head -n1)
+    warp_iface=$(grep -E "wgcf|warp|cloudflared" /proc/net/dev | cut -d':' -f1 | xargs | awk '{print $1}')
 fi
 
-# WARP 官方 Trace 状态
 trace=$(curl -s --max-time 5 https://www.cloudflare.com/cdn-cgi/trace)
 w_status=$(echo "$trace" | grep "warp=" | cut -d'=' -f2)
 w_colo=$(echo "$trace" | grep "colo=" | cut -d'=' -f2)
 
-echo -e "活跃出站接口: ${CYAN}${iface:-"未知"}${PLAIN}"
+echo -e "活跃出站接口: ${CYAN}${iface:-"eth0"}${PLAIN}"
 echo -e "WARP 虚拟网卡: ${PURPLE}${warp_iface:-"无"}${PLAIN}"
 echo -e "WARP 官方状态: ${BLUE}${w_status:-"off"}${PLAIN} | 节点: ${CYAN}${w_colo:-"N/A"}${PLAIN}"
 echo -e "----------------------------------------------------------------"
 
-# 4. IP 质量与风控深度审计
-echo -e "${YELLOW}[IP 质量与风险详情]${PLAIN}"
-# 调用 ip-api 高级 API 
-q_data=$(curl -s --max-time 5 "http://ip-api.com/json/?fields=status,country,isp,as,proxy,hosting,query")
+# 3. IP 质量、位置与运营商 (使用更原始的提取方式)
+echo -e "${YELLOW}[IP 质量、位置与运营商]${PLAIN}"
+q_data=$(curl -s --max-time 5 "http://ip-api.com/json/?fields=status,country,city,isp,as,proxy,hosting,query")
 
 if [[ "$q_data" == *"success"* ]]; then
-    ip=$(echo "$q_data" | grep -oP '(?<="query":")[^"]*')
-    isp=$(echo "$q_data" | grep -oP '(?<="isp":")[^"]*')
-    as_n=$(echo "$q_data" | grep -oP '(?<="as":")[^"]*')
-    is_h=$(echo "$q_data" | grep -oP '(?<="hosting":)[^,}]*')
-    is_p=$(echo "$q_data" | grep -oP '(?<="proxy":)[^,}]*')
+    # 采用兼容性最强的字符串切割方法
+    get_val() { echo "$q_data" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
 
-    # IP 类型判定
-    [ "$is_h" == "true" ] && type_txt="${RED}机房/DC (Hosting)${PLAIN}" || type_txt="${GREEN}原生/住宅 (Residential)${PLAIN}"
-    # 原生性判定 (检测 ISP 关键字)
-    if [[ "$isp" =~ "Google"|"Amazon"|"Cloudflare"|"OVH"|"Akamai"|"Microsoft" ]]; then
-        native_txt="${YELLOW}广播/非原生 (Anycast/Broadcast)${PLAIN}"
-    else
-        native_txt="${GREEN}原生/本地 (Native)${PLAIN}"
-    fi
-    # 共享人数估算 (基于 ASN 常见特征)
-    if [[ "$as_n" =~ "AS16276"|"AS14061"|"AS24940" ]]; then
-        share_txt="${PURPLE}多用户共享 (Shared NAT)${PLAIN}"
-    else
-        share_txt="${BLUE}独立/纯净 (Dedicated)${PLAIN}"
-    fi
+    ip=$(get_val "query")
+    isp=$(get_val "isp")
+    country=$(get_val "country")
+    city=$(get_val "city")
+    asn=$(get_val "as")
+    is_h=$(get_val "hosting")
+    is_p=$(get_val "proxy")
 
-    echo -e "出口地址: ${CYAN}$ip${PLAIN}"
-    echo -e "IP 类型 : $type_txt"
-    echo -e "原生性质: $native_txt"
-    echo -e "共享特征: $share_txt"
-    echo -e "风控评价: $([ "$is_p" == "true" ] && echo -e "${RED}高风险 (疑似代理出口)${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
+    echo -e "出口地址 : ${CYAN}$ip${PLAIN}"
+    echo -e "地理位置 : ${GREEN}$country - $city${PLAIN}"
+    echo -e "运营商   : ${CYAN}$isp${PLAIN}"
+    echo -e "ASN 信息 : $asn"
+    
+    # 质量判定
+    [ "$is_h" == "true" ] && type_txt="${RED}机房/数据中心${PLAIN}" || type_txt="${GREEN}住宅/原生${PLAIN}"
+    echo -e "IP 类型  : $type_txt"
+    echo -e "风控评价 : $([ "$is_p" == "true" ] && echo -e "${RED}高风险 (疑似代理出口)${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
 else
-    echo -e "${RED}数据解析失败，请检查网络连接${PLAIN}"
+    echo -e "${RED}无法获取 IP 详细元数据，接口可能受限${PLAIN}"
 fi
 echo -e "----------------------------------------------------------------"
 
-# 5. 全球流媒体 & AI 检测
-echo -e "${YELLOW}[流媒体 & AI 解锁审计]${PLAIN}"
+# 4. 全球服务解锁检测 (增加更多 AI 细节)
+echo -e "${YELLOW}[全球主流服务解锁检测]${PLAIN}"
 check_u() {
     local n=$1; local u=$2; local e=$3
-    if curl -s -L --max-time 5 "$u" | grep -qi "$e"; then
+    if curl -s -L --max-time 6 "$u" | grep -qi "$e"; then
         echo -e "✘ $n: ${RED}未解锁${PLAIN}"
     else
         echo -e "✔ $n: ${GREEN}已解锁${PLAIN}"
