@@ -1,87 +1,83 @@
 #!/bin/bash
 
-# --- 1. 基础环境采集 ---
+# --- 1. 基础环境 ---
 sys=$(cat /etc/os-release 2>/dev/null | grep "PRETTY_NAME" | sed 's/PRETTY_NAME=//g; s/"//g')
-cpu_model=$(grep -m 1 "model name" /proc/cpuinfo | cut -d: -f2 | xargs)
-cpu_cores=$(nproc 2>/dev/null || echo "1")
-mem_total=$(free -m | awk 'NR==2{print $2}'); mem_used=$(free -m | awk 'NR==2{print $3}')
+echo "════════════════════════════════════════════════════════════════"
+echo " 🛡️  VPS 多代理出站深度审计系统"
+echo " 运行环境: $sys"
+echo "════════════════════════════════════════════════════════════════"
 
-# --- 2. 进程与配置深度扫描 ---
-# 寻找主流代理进程
-PID=$(pgrep -f "xray|sing-box|ss-server|v2ray" | head -n 1)
-CONF_PATH="未找到"
-PROXY_PORT=""
+# --- 2. 获取所有代理进程 ---
+# 提取 PID, 进程名, 和完整的命令行参数
+PIDS=$(pgrep -f "xray|sing-box|v2ray|ss-server")
 
-if [ -n "$PID" ]; then
-    # 尝试找到进程打开的 json 配置文件
-    CONF_PATH=$(lsof -p $PID 2>/dev/null | grep ".json" | awk '{print $9}' | head -n 1)
+if [ -z "$PIDS" ]; then
+    echo "❌ 未发现运行中的代理进程。"
+    exit 1
+fi
+
+# --- 3. 循环审计每个进程 ---
+for PID in $PIDS; do
+    # 获取进程名和配置文件路径
+    PROC_NAME=$(ps -p $PID -o comm= | xargs)
+    # 尝试从命令行提取 -c 后面的路径
+    CONF_PATH=$(ps -fp $PID | grep -oP '(?<=-c\s)\S+|(?<=run\s-c\s)\S+' | head -n 1)
     
+    # 如果通过命令行没找到，尝试用 lsof 找
+    if [ -z "$CONF_PATH" ] || [ ! -f "$CONF_PATH" ]; then
+        CONF_PATH=$(lsof -p $PID 2>/dev/null | grep ".json" | awk '{print $9}' | head -n 1)
+    fi
+
+    echo "▶️  检测进程: [$PROC_NAME] (PID: $PID)"
+    echo "   配置文件: ${CONF_PATH:-未知}"
+
     if [ -f "$CONF_PATH" ]; then
-        # 提取第一个入站端口 (针对 Xray/Sing-box 常用格式)
-        PROXY_PORT=$(grep -oP '"port":\s*\d+' "$CONF_PATH" | head -n 1 | grep -oP '\d+')
-    fi
-fi
+        # --- 核心：静态配置审计 ---
+        # 检查文件中是否包含特定的 WARP 特征码
+        is_warp_config=false
+        if grep -qE "wireguard|warp|162.159.192.1|reserved" "$CONF_PATH"; then
+            is_warp_config=true
+        fi
 
-# --- 3. 核心：通过代理端口进行真出站探测 ---
-# 如果没找到端口，降级使用系统默认出口检测
-if [ -n "$PROXY_PORT" ]; then
-    # 模拟用户流量经过代理
-    TEST_CMD="curl -s --proxy socks5h://127.0.0.1:$PROXY_PORT --connect-timeout 3"
-    DETECT_TYPE="代理出站检测"
-else
-    TEST_CMD="curl -s --connect-timeout 3"
-    DETECT_TYPE="系统直连检测"
-fi
-
-# 获取出口 Trace 信息
-cf_trace=$($TEST_CMD https://www.cloudflare.com/cdn-cgi/trace)
-exit_ip=$(echo "$cf_trace" | grep "ip=" | cut -d= -f2)
-warp_flag=$(echo "$cf_trace" | grep "warp=" | cut -d= -f2)
-colo=$(echo "$cf_trace" | grep "colo=" | cut -d= -f2)
-
-# 获取地理位置与 ISP (基于出口 IP)
-if [ -z "$exit_ip" ]; then
-    location="检测失败"; isp="Unknown"
-else
-    ip_json=$(curl -s --connect-timeout 2 http://ip-api.com/json/$exit_ip)
-    city=$(echo "$ip_json" | tr ',' '\n' | grep '"city":' | cut -d'"' -f4)
-    country=$(echo "$ip_json" | tr ',' '\n' | grep '"country":' | cut -d'"' -f4)
-    isp=$(echo "$ip_json" | tr ',' '\n' | grep '"isp":' | cut -d'"' -f4)
-    location="${country} - ${city}"
-fi
-
-# --- 4. 紧凑排列输出 ---
-echo "════════════════════════════════════════════════════════════════"
-echo " VPS 代理出站深度检测系统"
-echo "════════════════════════════════════════════════════════════════"
-echo " 运行环境: $sys | $cpu_cores 核 | 内存: ${mem_used}/${mem_total}MB"
-echo " 进程追踪: PID: ${PID:-无} | 配置: ${CONF_PATH:-未知}"
-echo " 检测模式: $DETECT_TYPE (端口: ${PROXY_PORT:-None})"
-echo "----------------------------------------------------------------"
-echo " 出口 IP : ${exit_ip:-探测失败}"
-echo " 地理位置: $location"
-echo " 运营商  : $isp"
-echo " 节点数据: CF节点: ${colo:-Unknown} | 拥堵算法: $(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}')"
-echo " WARP状态: $([[ "$warp_flag" == "on" ]] && echo "✅ 配置文件已成功套用 WARP 出站" || echo "❌ 配置文件当前为直连/原生出站")"
-echo "----------------------------------------------------------------"
-
-# --- 5. 基于该出口 IP 的流媒体检测 ---
-check_media() {
-    local url=$1; local name=$2
-    local code=$($TEST_CMD -L -o /dev/null -w "%{http_code}" "$url" 2>/dev/null)
-    if [[ "$code" == "200" || "$code" == "302" ]]; then
-        echo -n "  ✅ $name "
+        # --- 核心：动态出站拨测 ---
+        # 提取入站端口（尝试匹配不同的 JSON 格式）
+        PORT=$(grep -oP '"port":\s*\d+' "$CONF_PATH" | head -n 1 | grep -oP '\d+')
+        
+        if [ -n "$PORT" ]; then
+            # 通过该进程的端口进行测试
+            TEST_CMD="curl -s --proxy socks5h://127.0.0.1:$PORT --connect-timeout 3"
+            trace_data=$($TEST_CMD https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null)
+            real_warp=$(echo "$trace_data" | grep "warp=" | cut -d= -f2)
+            real_ip=$(echo "$trace_data" | grep "ip=" | cut -d= -f2)
+            
+            # --- 结果判定 ---
+            if [[ "$is_warp_config" == true && "$real_warp" == "on" ]]; then
+                status="✅ 静态配置与动态拨测均确认：WARP 出站"
+            elif [[ "$is_warp_config" == true && "$real_warp" != "on" ]]; then
+                status="⚠️  配置了 WARP 但实际未生效 (可能握手失败)"
+            elif [[ "$is_warp_config" == false && "$real_warp" == "on" ]]; then
+                status="ℹ️  配置为直连，但系统全局套了 WARP"
+            else
+                status="❌ 纯直连出站"
+            fi
+            
+            echo "   出站 IP  : ${real_ip:-探测失败}"
+            echo "   判定结果: $status"
+            
+            # 只有开启了 WARP 或有特定需求才跑解锁测试
+            if [[ "$real_warp" == "on" ]]; then
+                echo -n "   解锁能力: "
+                for url in "netflix.com" "chatgpt.com"; do
+                    code=$($TEST_CMD -I -m 2 -o /dev/null -w "%{http_code}" "https://$url" 2>/dev/null)
+                    [[ "$code" == "200" || "$code" == "302" ]] && echo -n "✅$url  " || echo -n "❌$url  "
+                done
+                echo ""
+            fi
+        else
+            echo "   ⚠️  无法从配置文件中提取监听端口，跳过动态拨测。"
+        fi
     else
-        echo -n "  ❌ $name "
+        echo "   ❌ 无法读取配置文件，审计中断。"
     fi
-}
-
-echo " 节点解锁能力测试:"
-check_media "https://www.netflix.com/title/80018499" "Netflix"
-check_media "https://www.youtube.com/premium" "YouTube"
-check_media "https://www.disneyplus.com" "Disney+"
-echo "" 
-check_media "https://chat.openai.com/" "ChatGPT"
-check_media "https://gemini.google.com/" "Gemini"
-check_media "https://www.anthropic.com/" "Claude"
-echo -e "\n════════════════════════════════════════════════════════════════"
+    echo "----------------------------------------------------------------"
+done
