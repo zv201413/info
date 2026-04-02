@@ -1,69 +1,48 @@
 #!/bin/bash
-
-# --- 1. 环境依赖 ---
-[[ -z $(command -v jq) ]] && apt update && apt install -y jq lsof >/dev/null 2>&1
-sys_version=$(cat /etc/os-release 2>/dev/null | grep "PRETTY_NAME" | sed 's/PRETTY_NAME=//g; s/"//g')
-cpu_model=$(lscpu | grep "Model name" | cut -d: -f2 | xargs)
+# --- 环境检查 ---
+[[ -z $(command -v jq) ]] && apt update && apt install -y jq >/dev/null 2>&1
 
 echo "════════════════════════════════════════════════════════════════"
-echo " 🛡️  VPS 深度审计 [WARP 智能定位版 v22.0]"
+echo " 🛡️  VPS 深度审计 [双核心手工适配版 v24.0]"
 echo "════════════════════════════════════════════════════════════════"
-echo " 硬件: $(nproc) 核 | $cpu_model"
-echo " 运行: $(uptime -p | sed 's/up //')"
+
+# 1. 杀掉残留进程
+kill -9 $(pgrep -f "audit_") 2>/dev/null
+
+# 2. Xray 审计 (PID 5798 所在的 /home/zv/vless-all/)
+if [ -d "/home/zv/vless-all" ]; then
+    echo "▶️ 检测进程: [Xray] (PID: 5798)"
+    # 强制注入：我们不改你的 outbounds 链条，只改入站和 DNS
+    jq '.inbounds = [{"protocol":"socks","listen":"127.0.0.1","port":46000,"settings":{"udp":true}}] |
+        .dns = {"servers": ["8.8.8.8", "1.1.1.1"]}' \
+        /home/zv/vless-all/config.json > /tmp/audit_xray.json
+    
+    (cd /home/zv/vless-all && ./xray -c /tmp/audit_xray.json >/dev/null 2>&1 &)
+    sleep 10
+    
+    # 既然你的路由规则是 TCP/UDP 全走 warp-v6-out，我们直接测
+    v6=$(curl -6 -s --proxy socks5h://127.0.0.1:46000 --connect-timeout 10 api64.ipify.org)
+    v4=$(curl -4 -s --proxy socks5h://127.0.0.1:46000 --connect-timeout 10 api.ipify.org)
+    echo "   隧道出口 IPv4: ${v4:-❌ 失败}"
+    echo "   隧道出口 IPv6: ${v6:-❌ 失败}"
+    kill $(pgrep -f "audit_xray") >/dev/null 2>&1
+fi
+
 echo "----------------------------------------------------------------"
 
-PIDS=$(pgrep -f "xray|sing-box" | grep -v $$)
-
-for PID in $PIDS; do
-    CMD_LINE=$(ps -fp $PID | tail -n 1)
-    PROC_BIN=$(readlink -f /proc/$PID/exe)
-    PROC_NAME=$(basename "$PROC_BIN")
-    CONF_PATH=$(echo "$CMD_LINE" | sed -n 's/.*-c \([^ ]*\).*/\1/p; s/.*run -c \([^ ]*\).*/\1/p')
-    [ ! -f "$CONF_PATH" ] && CONF_PATH=$(lsof -p $PID 2>/dev/null | grep ".json" | awk '{print $9}' | head -n 1)
-
-    if [ -f "$CONF_PATH" ]; then
-        CONF_DIR=$(dirname "$CONF_PATH")
-        TEMP_PORT=$((44000 + RANDOM % 5000))
-        TEMP_JSON="/tmp/warp_final_${PID}.json"
-
-        # --- 核心改进：智能寻找 WARP 标签 ---
-        # 优先找包含 warp 的 tag，找不到再找第一个非 direct 的 tag
-        TARGET_TAG=$(jq -r '.outbounds | map(select(.tag | contains("warp"))) | .[0].tag' "$CONF_PATH")
-        if [ "$TARGET_TAG" == "null" ] || [ -z "$TARGET_TAG" ]; then
-            TARGET_TAG=$(jq -r '.outbounds | map(select(.protocol != "freedom" and .tag != "direct")) | .[0].tag' "$CONF_PATH")
-        fi
-
-        echo "▶️ 进程: [$PROC_NAME] (PID: $PID)"
-        echo "   定位出口标签: $TARGET_TAG"
-
-        # 注入逻辑：保留原有 outbounds，但强制 routing 走目标标签
-        jq --argjson p "$TEMP_PORT" --arg tag "$TARGET_TAG" '
-            .inbounds = [{"protocol":"socks","listen":"127.0.0.1","port":$p,"settings":{"udp":true}}] |
-            .dns = {"servers": ["8.8.8.8", "1.1.1.1", "localhost"]} |
-            .routing = {"rules": [{"type": "field", "port": "0-65535", "outboundTag": $tag}]}
-        ' "$CONF_PATH" > "$TEMP_JSON"
-
-        (cd "$CONF_DIR" && "$PROC_BIN" -c "$TEMP_JSON" >/dev/null 2>&1 &) || (cd "$CONF_DIR" && "$PROC_BIN" run -c "$TEMP_JSON" >/dev/null 2>&1 &)
-        SHADOW_PID=$!
-        
-        echo " ⏳ 影子进程已启动，等待隧道握手 (12s)..."
-        sleep 12
-
-        # 拨测
-        real_v6=$(curl -6 -s --proxy socks5h://127.0.0.1:$TEMP_PORT --connect-timeout 10 api64.ipify.org)
-        real_v4=$(curl -4 -s --proxy socks5h://127.0.0.1:$TEMP_PORT --connect-timeout 10 api.ipify.org)
-        
-        echo "   隧道出口 IPv4: ${real_v4:-❌ 失败}"
-        echo "   隧道出口 IPv6: ${real_v6:-❌ 失败}"
-        
-        echo -n "   解锁实测: "
-        for site in "Netflix:netflix.com" "ChatGPT:chatgpt.com"; do
-            code=$(curl -s --proxy socks5h://127.0.0.1:$TEMP_PORT -L -o /dev/null -w "%{http_code}" "https://${site#*:}" --connect-timeout 8 2>/dev/null)
-            [[ "$code" == "200" || "$code" == "302" || "$code" == "403" ]] && echo -n "✅${site%%:*} " || echo -n "❌${site%%:*} "
-        done
-        echo ""
-
-        kill $SHADOW_PID >/dev/null 2>&1; rm "$TEMP_JSON"
-    fi
-    echo "----------------------------------------------------------------"
-done
+# 3. Sing-box 审计 (PID 62915 所在的 /home/zv/agsbx/)
+if [ -d "/home/zv/agsbx" ]; then
+    echo "▶️ 检测进程: [Sing-box] (PID: 62915)"
+    # 强制修正：因为你 sb.json 没写 warp 出站，我得手动给你塞一个进去
+    jq '.inbounds = [{"type":"socks","tag":"socks-in","listen":"127.0.0.1","listen_port":46001}] |
+        .outbounds = [{"type":"wireguard","tag":"warp-audit","server":"162.159.192.1","server_port":2408,"system_interface":false,"local_address":["172.16.0.2/32","2606:4700:110:8d8d:1845:c39f:2dd5:a03a/128"],"private_key":"52cuYFgCJXp0LAq7+nWJIbCXXgU9eGggOc+Hlfz5u6A=","peer_public_key":"bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=","reserved":[215, 69, 233]}] |
+        .route = {"rules": [{"inbound":["socks-in"],"outbound":"warp-audit"}]}' \
+        /home/zv/agsbx/sb.json > /tmp/audit_sb.json
+    
+    (cd /home/zv/agsbx && ./sing-box run -c /tmp/audit_sb.json >/dev/null 2>&1 &)
+    sleep 12
+    
+    v6=$(curl -6 -s --proxy socks5h://127.0.0.1:46001 --connect-timeout 10 api64.ipify.org)
+    echo "   隧道出口 IPv6: ${v6:-❌ 失败}"
+    kill $(pgrep -f "audit_sb") >/dev/null 2>&1
+fi
