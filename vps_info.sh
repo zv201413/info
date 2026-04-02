@@ -12,96 +12,104 @@ echo -e "${BLUE}═════════════════════�
 echo -e "  🛡️  VPS 基本信息"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
-# 1. 硬件核心信息
-cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
-echo -e "${YELLOW}[硬件摘要]${PLAIN} CPU: ${CYAN}$cpu_model${PLAIN}"
-echo -e "----------------------------------------------------------------"
+# 1. 双保险：首先尝试安装 iproute2
+echo -n -e "${YELLOW}[系统环境]${PLAIN} 正在检查/安装依赖... "
+if ! command -v ip &> /dev/null; then
+    if command -v apt-get &> /dev/null; then
+        apt-get update -qq && apt-get install -y -qq iproute2 &> /dev/null
+    elif command -v yum &> /dev/null; then
+        yum install -y -q iproute &> /dev/null
+    elif command -v apk &> /dev/null; then
+        apk add iproute2 &> /dev/null
+    fi
+fi
 
-# 2. 路由表与网卡审计 (核心增加)
-echo -e "${YELLOW}[系统路由与网卡审计]${PLAIN}"
-# 检测是否存在 WARP 常见的虚拟网卡
-warp_interface=$(ip link show | grep -E "wgcf|warp|cloudflared" | awk -F': ' '{print $2}' | head -n1)
-if [ -n "$warp_interface" ]; then
-    echo -e "物理/虚拟网卡: ${GREEN}发现 $warp_interface${PLAIN}"
+if command -v ip &> /dev/null; then
+    echo -e "${GREEN}iproute2 已就绪${PLAIN}"
 else
-    echo -e "物理/虚拟网卡: ${RED}未发现独立 WARP 网卡 (可能运行在用户态 Proxy 模式)${PLAIN}"
+    echo -e "${RED}安装失败，将切换至 /proc 底层检测模式${PLAIN}"
 fi
 
-# 检测默认路由出站
-default_gw=$(ip route | grep default | awk '{print $3}' | head -n1)
-default_dev=$(ip route | grep default | awk '{print $5}' | head -n1)
-echo -e "系统默认网关: $default_gw | 出站接口: ${CYAN}$default_dev${PLAIN}"
+# 2. 硬件摘要
+cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
+echo -e "${YELLOW}[硬件摘要]${PLAIN} CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN}"
+echo -e "----------------------------------------------------------------"
 
-# 检测策略路由 (IP Rule)
-if ip rule | grep -q "from all lookup"; then
-    echo -e "策略路由状态: ${GREEN}已启用自定义路由表${PLAIN}"
+# 3. 网络与 WARP 路由审计 (双保险检测)
+echo -e "${YELLOW}[网络出站与路由审计]${PLAIN}"
+
+# 检测网卡 (优先 ip link, 备选 /proc/net/dev)
+if command -v ip &> /dev/null; then
+    iface=$(ip -6 route show default | awk '{print $5}' | head -n1)
+    [ -z "$iface" ] && iface=$(ip route show default | awk '{print $5}' | head -n1)
+    warp_iface=$(ip link show | grep -E "wgcf|warp|cloudflared" | awk -F': ' '{print $2}' | head -n1)
+else
+    iface=$(awk '{if($2==00000000) print $1}' /proc/net/route | head -n1)
+    warp_iface=$(grep -E "wgcf|warp|cloudflared" /proc/net/dev | cut -d':' -f1 | xargs | head -n1)
 fi
+
+# WARP 官方 Trace 状态
+trace=$(curl -s --max-time 5 https://www.cloudflare.com/cdn-cgi/trace)
+w_status=$(echo "$trace" | grep "warp=" | cut -d'=' -f2)
+w_colo=$(echo "$trace" | grep "colo=" | cut -d'=' -f2)
+
+echo -e "活跃出站接口: ${CYAN}${iface:-"未知"}${PLAIN}"
+echo -e "WARP 虚拟网卡: ${PURPLE}${warp_iface:-"无"}${PLAIN}"
+echo -e "WARP 官方状态: ${BLUE}${w_status:-"off"}${PLAIN} | 节点: ${CYAN}${w_colo:-"N/A"}${PLAIN}"
 echo -e "----------------------------------------------------------------"
 
-# 3. WARP 官方状态深度检测 (通过 Cloudflare Trace)
-echo -e "${YELLOW}[WARP 官方接口状态]${PLAIN}"
-trace_info=$(curl -s --max-time 5 https://www.cloudflare.com/cdn-cgi/trace)
-warp_status=$(echo "$trace_info" | grep "warp=" | cut -d'=' -f2)
-warp_colo=$(echo "$trace_info" | grep "colo=" | cut -d'=' -f2)
+# 4. IP 质量与风控深度审计
+echo -e "${YELLOW}[IP 质量与风险详情]${PLAIN}"
+# 调用 ip-api 高级 API 
+q_data=$(curl -s --max-time 5 "http://ip-api.com/json/?fields=status,country,isp,as,proxy,hosting,query")
 
-case "$warp_status" in
-    on)
-        echo -e "WARP 状态: ${GREEN}已开启 (WARP Free)${PLAIN}" ;;
-    plus)
-        echo -e "WARP 状态: ${PURPLE}已开启 (WARP+ / Zero Trust)${PLAIN}" ;;
-    off)
-        echo -e "WARP 状态: ${RED}未接入 Cloudflare 网络${PLAIN}" ;;
-    *)
-        echo -e "WARP 状态: ${YELLOW}无法获取 (可能是直连或被拦截)${PLAIN}" ;;
-esac
-echo -e "Cloudflare 数据中心: ${CYAN}$warp_colo${PLAIN}"
-echo -e "----------------------------------------------------------------"
+if [[ "$q_data" == *"success"* ]]; then
+    ip=$(echo "$q_data" | grep -oP '(?<="query":")[^"]*')
+    isp=$(echo "$q_data" | grep -oP '(?<="isp":")[^"]*')
+    as_n=$(echo "$q_data" | grep -oP '(?<="as":")[^"]*')
+    is_h=$(echo "$q_data" | grep -oP '(?<="hosting":)[^,}]*')
+    is_p=$(echo "$q_data" | grep -oP '(?<="proxy":)[^,}]*')
 
-# 4. 运营商与位置 (多接口备用)
-get_ip_info() {
-    local proto=$1
-    local info=$(curl -$proto -s --max-time 5 "http://ip-api.com/json/?lang=zh-CN")
-    [ -z "$info" ] && info=$(curl -$proto -s --max-time 5 "https://ifconfig.co/json")
-    
-    local ip=$(echo "$info" | grep -oP '(?<="query":")[^"]*|(?<="ip":")[^"]*')
-    local isp=$(echo "$info" | grep -oP '(?<="isp":")[^"]*|(?<="asn_org":")[^"]*')
-    local loc=$(echo "$info" | grep -oP '(?<="country":")[^"]*')
-    
-    if [ -n "$ip" ]; then
-        echo -e "IPv$proto 出口: ${GREEN}$ip${PLAIN} | 区域: $loc"
-        echo -e "运营商: ${CYAN}$isp${PLAIN}"
+    # IP 类型判定
+    [ "$is_h" == "true" ] && type_txt="${RED}机房/DC (Hosting)${PLAIN}" || type_txt="${GREEN}原生/住宅 (Residential)${PLAIN}"
+    # 原生性判定 (检测 ISP 关键字)
+    if [[ "$isp" =~ "Google"|"Amazon"|"Cloudflare"|"OVH"|"Akamai"|"Microsoft" ]]; then
+        native_txt="${YELLOW}广播/非原生 (Anycast/Broadcast)${PLAIN}"
     else
-        echo -e "IPv$proto 出口: ${RED}无外部连接${PLAIN}"
+        native_txt="${GREEN}原生/本地 (Native)${PLAIN}"
+    fi
+    # 共享人数估算 (基于 ASN 常见特征)
+    if [[ "$as_n" =~ "AS16276"|"AS14061"|"AS24940" ]]; then
+        share_txt="${PURPLE}多用户共享 (Shared NAT)${PLAIN}"
+    else
+        share_txt="${BLUE}独立/纯净 (Dedicated)${PLAIN}"
+    fi
+
+    echo -e "出口地址: ${CYAN}$ip${PLAIN}"
+    echo -e "IP 类型 : $type_txt"
+    echo -e "原生性质: $native_txt"
+    echo -e "共享特征: $share_txt"
+    echo -e "风控评价: $([ "$is_p" == "true" ] && echo -e "${RED}高风险 (疑似代理出口)${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
+else
+    echo -e "${RED}数据解析失败，请检查网络连接${PLAIN}"
+fi
+echo -e "----------------------------------------------------------------"
+
+# 5. 全球流媒体 & AI 检测
+echo -e "${YELLOW}[流媒体 & AI 解锁审计]${PLAIN}"
+check_u() {
+    local n=$1; local u=$2; local e=$3
+    if curl -s -L --max-time 5 "$u" | grep -qi "$e"; then
+        echo -e "✘ $n: ${RED}未解锁${PLAIN}"
+    else
+        echo -e "✔ $n: ${GREEN}已解锁${PLAIN}"
     fi
 }
 
-echo -e "${YELLOW}[网络出口审计]${PLAIN}"
-get_ip_info 4
-echo -e "---"
-get_ip_info 6
-echo -e "----------------------------------------------------------------"
-
-# 5. 增强型流媒体 & AI 检测
-echo -e "${YELLOW}[流媒体 & AI 解锁检测]${PLAIN}"
-
-test_item() {
-    local name=$1
-    local url=$2
-    local err_str=$3
-    local res=$(curl -s -L --max-time 5 "$url")
-    if echo "$res" | grep -qi "$err_str"; then
-        echo -e "✘ $name: ${RED}未解锁${PLAIN}"
-    else
-        echo -e "✔ $name: ${GREEN}已解锁${PLAIN}"
-    fi
-}
-
-# 视频
-test_item "Netflix" "https://www.netflix.com/title/80018499" "Forbidden|Not Available"
-test_item "Disney+" "https://www.disneyplus.com" "unavailable"
-# AI
-test_item "ChatGPT" "https://chatgpt.com" "Just a moment|Access denied"
-test_item "Claude" "https://claude.ai" "App unavailable"
-test_item "Gemini" "https://gemini.google.com" "not available"
+check_u "Netflix" "https://www.netflix.com/title/80018499" "Forbidden"
+check_u "Disney+" "https://www.disneyplus.com" "unavailable"
+check_u "ChatGPT" "https://chatgpt.com" "Just a moment"
+check_u "Claude" "https://claude.ai" "App unavailable"
+check_u "Gemini" "https://gemini.google.com" "not available"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
