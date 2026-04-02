@@ -1,10 +1,5 @@
 #!/bin/bash
 
-echo "════════════════════════════════════════════════════════════════"
-echo " VPS 基础信息查询系统"
-echo "════════════════════════════════════════════════════════════════"
-echo ""
-
 # 收集数据
 location="Unknown"
 hostname=$(hostname)
@@ -41,13 +36,10 @@ tcp_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "未获
 tcp_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "未获取")
 
 # 显示基础信息每个部分之间没有空行
-echo "-----------------------"
 printf " Linux版本: %s\n" "$kernel"
-echo "------------------------"
 printf " CPU架构: %s\n" "$arch"
 printf " CPU型号: %s\n" "$cpu_model"
 printf " CPU核心数: %s\n" "$cpu_cores"
-echo "------------------------"
 # 检查是否可以获取CPU占用
 if command -v top >/dev/null 2>&1; then
     cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1) 2>/dev/null || echo "0"
@@ -57,12 +49,9 @@ else
 fi
 printf " 内存占用: %s/%s MB (%s)\n" "$mem_used" "$mem_total" "$mem_usage"
 printf " 硬盘占用: %s (已用) / %sGB (总计)\n" "$disk_usage%" "$(df -h / | awk 'NR==2{print $2}' | sed 's/G//')"
-echo "------------------------"
 printf " 网络拥堵算法: %s\n" "$tcp_algo"
  printf " 地理位置: %s\n" "$location"
-echo "------------------------"
 printf " 系统时间: %s\n" "$sys_time"
-echo "------------------------"
 printf " 系统运行时长: %s\n" "$uptime_simple"
 echo ""
 
