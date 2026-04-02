@@ -151,7 +151,7 @@ elif [ "$routing_bypassed" = true ]; then
 	echo "  状态: ⚠️ 路由绕过WARP隧道"
 	echo "  配置文件: $target_config"
 elif [ "$warp_routing_working" = true ]; then
-	echo "  状态: ✅ 已生效 (流量通过WARP)"
+ echo " 状态: ✅ 已生效 [流量通过WARP]"
 	echo "  配置文件IPv6: $static_v6"
 	echo "  实际出站IPv6: $ipv6_out ✓ 路由一致"
 else
