@@ -59,8 +59,7 @@ printf " 内存占用: %s/%s MB (%s)\n" "$mem_used" "$mem_total" "$mem_usage"
 printf " 硬盘占用: %s (已用) / %sGB (总计)\n" "$disk_usage%" "$(df -h / | awk 'NR==2{print $2}' | sed 's/G//')"
 echo "------------------------"
 printf " 网络拥堵算法: %s\n" "$tcp_algo"
-printf " 地理位置: %s\n" "$location"
-" "$location"
+ printf " 地理位置: %s\n" "$location"
 echo "------------------------"
 printf " 系统时间: %s\n" "$sys_time"
 echo "------------------------"
@@ -151,14 +150,14 @@ elif [ "$routing_bypassed" = true ]; then
 	echo "  状态: ⚠️ 路由绕过WARP隧道"
 	echo "  配置文件: $target_config"
 elif [ "$warp_routing_working" = true ]; then
- echo " 状态: ✅ 已生效 [流量通过WARP]"
+	echo "  状态: ✅ 已生效 [流量通过WARP]"
 	echo "  配置文件IPv6: $static_v6"
 	echo "  实际出站IPv6: $ipv6_out ✓ 路由一致"
 else
 	echo "  配置文件: $target_config"
 	echo "  配置文件IPv6: $static_v6"
-echo "  实际出站IPv6: ${ipv6_out} ✗ 与配置不匹配"
-	echo "  状态: ❌ 未生效 (路由未指向隧道)"
+	echo "  实际出站IPv6: ${ipv6_out} ✗ 与配置不匹配"
+	echo -e "  状态: ❌ 未生效 (路由未指向隧道)"
 fi
 echo ""
 
