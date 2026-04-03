@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 颜色定义
+# 颜色定义 (增加兼容性)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -9,26 +9,25 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 快捷键配置开始 ---
-# 获取当前脚本的绝对路径
+# --- 快捷键配置 ---
 SCRIPT_PATH=$(readlink -f "$0")
-
-# 检查并设置快捷键 vps
 if [ "$EUID" -eq 0 ]; then
     if [ ! -f "/usr/local/bin/vps" ]; then
         echo -e "#!/bin/bash\nbash $SCRIPT_PATH \"\$@\"" > /usr/local/bin/vps
         chmod +x /usr/local/bin/vps
-        SHORTCUT_MSG="${GREEN}快捷键已设置为 vps, 下次运行输入 vps 可快速启动此脚本${PLAIN}"
+        SHORTCUT_MSG="${GREEN}快捷键设置成功! 下次输入 vps 即可运行${PLAIN}"
     else
         SHORTCUT_MSG="${CYAN}快捷键: vps${PLAIN}"
     fi
+else
+    SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
-# --- 快捷键配置结束 ---
 
 clear
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "  🛡️  VPS 基础信息与测试工具箱"
+echo -e "  ${SHORTCUT_MSG}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
 # 1. 基础硬件与内核协议栈
@@ -51,6 +50,7 @@ get_jitter() {
     if [ ${#latencies[@]} -lt 2 ]; then
         echo -e "${RED}线路不通或被拦截${PLAIN}"
     else
+        # 兼容不同系统的 awk 处理
         stats=$(printf '%s\n' "${latencies[@]}" | awk '{if(min==""){min=max=$1}; if($1>max)max=$1; if($1<min)min=$1; sum+=$1} END {printf "%.2f|%.2f", max-min, sum/NR}')
         diff=$(echo $stats | cut -d'|' -f1)
         if (( $(awk -v d="$diff" 'BEGIN {print (d < 2.0)}') )); then echo -e "${GREEN}极佳 (抖动 ${diff}ms)${PLAIN}"
@@ -71,7 +71,11 @@ audit_config() {
     if [ -f "$conf_path" ]; then
         echo -e "--- ${PURPLE}${proc_name}${PLAIN} ---"
         echo -e "路径: ${CYAN}$conf_path${PLAIN}"
-        grep -qiE "wireguard|warp|x-warp|cloudflared" "$conf_path" && echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口${PLAIN}" || echo -e "出站: ${RED}✘ 纯直连/普通代理${PLAIN}"
+        if grep -qiE "wireguard|warp|x-warp|cloudflared" "$conf_path" >/dev/null 2>&1; then
+            echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口${PLAIN}"
+        else
+            echo -e "出站: ${RED}✘ 纯直连/普通代理${PLAIN}"
+        fi
     fi
 }
 x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
@@ -109,7 +113,7 @@ get_ip_info() {
 get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
-# 5. 集成测试脚本合集菜单 (取代原有的解锁检测)
+# 5. 测试菜单
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "${YELLOW}[测试脚本合集]${PLAIN}"
 echo -e " 1.  YABS 性能测试 (精简版)"
@@ -123,28 +127,12 @@ echo -e "${BLUE}═════════════════════�
 read -p "请输入数字选择: " test_choice
 
 case $test_choice in
-    1)
-        curl -sL yabs.sh | bash -s -- -i -f -z
-        ;;
-    2)
-        bash <(curl -sL https://raw.githubusercontent.com/spiritLHLS/ecs/main/ecs.sh)
-        ;;
-    3)
-        bash <(curl -L -s check.unlock.media)
-        ;;
-    4)
-        bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh)
-        ;;
-    5)
-        curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3
-        ;;
-    6)
-        curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast
-        ;;
-    0)
-        exit 0
-        ;;
-    *)
-        echo -e "${RED}无效选择，脚本退出${PLAIN}"
-        ;;
+    1) curl -sL yabs.sh | bash -s -- -i -f -z ;;
+    2) bash <(curl -sL https://github.com/spiritLHLS/ecs/raw/main/ecs.sh) ;;
+    3) bash <(curl -L -s check.unlock.media) ;;
+    4) bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh) ;;
+    5) curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    6) curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
+    0) exit 0 ;;
+    *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
