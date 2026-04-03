@@ -107,7 +107,7 @@ echo ""
 get_ip_info "IPv6" "6"
 echo -e "----------------------------------------------------------------"
 
-# 5. 全球服务解锁检测 (变量缓冲版 - 彻底修复 Broken Pipe)
+# 5. 全球服务解锁检测
 echo -e "${YELLOW}[全球主流服务解锁检测]${PLAIN}"
 
 # 核心检测函数
@@ -117,7 +117,8 @@ check_u() {
     local res=$(curl -s -L -A "$ua" --max-time 10 "$url" 2>/dev/null)
     
     if [ -z "$res" ]; then return 1; fi # 失败
-    if echo "$res" | grep -qi "$err_key"; then return 2; fi # 未解锁
+    # 使用 Bash 字符串重定向避免 grep -q 打断管道
+    if grep -i "$err_key" <<< "$res" >/dev/null 2>&1; then return 2; fi # 未解锁
     return 0 # 已解锁
 }
 
@@ -149,21 +150,17 @@ check_u "https://www.spotify.com/us/" "not available" && r_spt=$? || r_spt=$?
 check_u "https://www.instagram.com" "not available" && r_ins=$? || r_ins=$?
 check_u "https://twitter.com" "not available" && r_twit=$? || r_twit=$?
 
-# --- 区域专项探测 ---
-yt_region=$(curl -sL --max-time 10 "https://www.youtube.com/red" 2>/dev/null | grep -o 'country_code=[A-Z]\{2\}' | head -n1 | cut -d= -f2)
+# --- 区域专项探测 (修复多行匹配引起的挂起) ---
+yt_region=$(curl -sL --max-time 10 "https://www.youtube.com/red" 2>/dev/null | grep -m 1 -o 'country_code=[A-Z]\{2\}' | cut -d= -f2)
 tk_region=$(curl -sI https://www.tiktok.com/ 2>/dev/null | grep -i "x-tiktok-region" | awk '{print $2}' | tr -d '\r')
 
-# --- 统一输出 (解决 Broken Pipe) ---
+# --- 统一输出 ---
 echo -e "${CYAN}[AI Tools]  ${PLAIN}$(format_s "ChatGPT" $r_gpt)$(format_s "Claude" $r_cld)$(format_s "Gemini" $r_gem)"
 echo -e "${CYAN}[Streaming] ${PLAIN}$(format_s "Netflix" $r_nfl)$(format_s "Disney+" $r_dis)$(format_s "YouTube" $r_ytp)$(format_s "Prime" $r_prm)"
 echo -e "${CYAN}[Social]    ${PLAIN}$(format_s "TikTok" $r_tik)$(format_s "Spotify" $r_spt)$(format_s "Instagram" $r_ins)$(format_s "Twitter" $r_twit)"
 
-# 打印区域信息
 echo -e "----------------------------------------------------------------"
 [ -n "$yt_region" ] && echo -ne "🎥 YouTube 区域: ${GREEN}${yt_region}${PLAIN}  " || echo -ne "🎥 YouTube 区域: ${RED}检测失败${PLAIN}  "
 [ -n "$tk_region" ] && echo -e "🎵 TikTok 区域: ${GREEN}${tk_region}${PLAIN}" || echo -e "🎵 TikTok 区域: ${RED}检测失败${PLAIN}"
-
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-fi
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
