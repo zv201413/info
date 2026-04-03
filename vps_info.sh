@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 颜色定义 (增加兼容性)
+# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -9,19 +9,23 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 快捷键配置 ---
-SCRIPT_PATH=$(readlink -f "$0")
+# --- 快捷键配置 (适配 GitHub 在线执行) ---
 if [ "$EUID" -eq 0 ]; then
     if [ ! -f "/usr/local/bin/vps" ]; then
-        echo -e "#!/bin/bash\nbash $SCRIPT_PATH \"\$@\"" > /usr/local/bin/vps
+        # 写入快捷指令，每次执行都会拉取你的最新 GitHub 脚本
+        cat > /usr/local/bin/vps << 'EOF'
+#!/bin/bash
+bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh) "$@"
+EOF
         chmod +x /usr/local/bin/vps
-        SHORTCUT_MSG="${GREEN}快捷键设置成功! 下次输入 vps 即可运行${PLAIN}"
+        SHORTCUT_MSG="${GREEN}快捷键已设置! 下次直接输入 vps 即可运行${PLAIN}"
     else
         SHORTCUT_MSG="${CYAN}快捷键: vps${PLAIN}"
     fi
 else
     SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
+# --- 快捷键配置结束 ---
 
 clear
 
@@ -50,7 +54,6 @@ get_jitter() {
     if [ ${#latencies[@]} -lt 2 ]; then
         echo -e "${RED}线路不通或被拦截${PLAIN}"
     else
-        # 兼容不同系统的 awk 处理
         stats=$(printf '%s\n' "${latencies[@]}" | awk '{if(min==""){min=max=$1}; if($1>max)max=$1; if($1<min)min=$1; sum+=$1} END {printf "%.2f|%.2f", max-min, sum/NR}')
         diff=$(echo $stats | cut -d'|' -f1)
         if (( $(awk -v d="$diff" 'BEGIN {print (d < 2.0)}') )); then echo -e "${GREEN}极佳 (抖动 ${diff}ms)${PLAIN}"
@@ -125,8 +128,7 @@ echo -e " 0.  退出脚本"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 read -p "请输入数字选择: " test_choice
 
-case $test_choice in
-case $test_choice in
+case "$test_choice" in
     1) bash <(curl -sL https://github.com/spiritLHLS/ecs/raw/main/ecs.sh) ;;
     2) bash <(curl -L -s check.unlock.media) ;;
     3) bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh) ;;
