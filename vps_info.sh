@@ -9,8 +9,10 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
+clear
+
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e "  🛡️  VPS 基础信息"
+echo -e "  🛡️  VPS 基础信息与测试工具箱"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
 # 1. 基础硬件与内核协议栈
@@ -62,18 +64,12 @@ s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
 echo -e "----------------------------------------------------------------"
 
-# 4. IP 深度画像 (核心修正点)
+# 4. IP 深度画像
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
 get_ip_info() {
     local version=$1; local flag=$2
     local query_ip=""
-    
-    # 尝试多个最稳定的获取 IP 接口
-    local endpoints=(
-        "https://api$flag.ipify.org"
-        "https://ifconfig.io/ip"
-        "http://v$flag.ipv6-test.com/api/myip.php"
-    )
+    local endpoints=("https://api$flag.ipify.org" "https://ifconfig.io/ip")
 
     for url in "${endpoints[@]}"; do
         query_ip=$(curl -$flag -s --max-time 5 "$url" 2>/dev/null | grep -oE '([0-9a-fA-F.:]{7,45})' | head -n1)
@@ -81,86 +77,58 @@ get_ip_info() {
     done
 
     if [[ -n "$query_ip" ]]; then
-        # 拿到 IP 后，强制用 IPv4 查询画像，避开 API 对 IPv6 的限流
         local info=$(curl -4 -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
-        
         echo -e "${PURPLE}[$version 网络]${PLAIN}"
         echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}"
-        
         if [[ "$info" == *"success"* ]]; then
             get_v() { echo "$info" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
             local is_h=$(get_v "hosting"); local is_p=$(get_v "proxy")
-            echo -e "运营商   : $(get_v "isp")"
-            echo -e "地理位置 : ${GREEN}$(get_v "country") - $(get_v "city")${PLAIN}"
-            echo -e "IP 类型   : $([ "$is_h" == "true" ] && echo -e "${RED}IDC机房${PLAIN}" || echo -e "${GREEN}住宅/原生${PLAIN}")"
-            echo -e "风控评价 : $([ "$is_p" == "true" ] && echo -e "${RED}高风险${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
-        else
-            echo -e "画像数据 : ${YELLOW}画像库请求受限，仅显示 IP${PLAIN}"
+            echo -e "地理位置 : ${GREEN}$(get_v "country") - $(get_v "city")${PLAIN} | ISP: $(get_v "isp")"
+            echo -e "IP 类型  : $([ "$is_h" == "true" ] && echo -e "${RED}IDC机房${PLAIN}" || echo -e "${GREEN}住宅/原生${PLAIN}") | 风控: $([ "$is_p" == "true" ] && echo -e "${RED}高风险${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
         fi
     else
-        echo -e "${PURPLE}[$version 网络]${PLAIN} : ${RED}未检测到有效连接 (或接口被屏蔽)${PLAIN}"
+        echo -e "${PURPLE}[$version 网络]${PLAIN} : ${RED}未检测到有效连接${PLAIN}"
     fi
 }
-
 get_ip_info "IPv4" "4"
-echo ""
 get_ip_info "IPv6" "6"
-echo -e "----------------------------------------------------------------"
 
-# 5. 全球服务解锁检测
-echo -e "${YELLOW}[全球主流服务解锁检测]${PLAIN}"
-
-# 核心检测函数
-check_u() {
-    local url=$1; local err_key=$2
-    local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-    local res=$(curl -s -L -A "$ua" --max-time 10 "$url" 2>/dev/null)
-    
-    if [ -z "$res" ]; then return 1; fi # 失败
-    # 使用 Bash 字符串重定向避免 grep -q 打断管道
-    if grep -i "$err_key" <<< "$res" >/dev/null 2>&1; then return 2; fi # 未解锁
-    return 0 # 已解锁
-}
-
-# 状态格式化函数
-format_s() {
-    local name=$1; local status=$2
-    case $status in
-        0) echo -ne "✔ ${name}: ${GREEN}已解锁${PLAIN}  " ;;
-        2) echo -ne "✘ ${name}: ${RED}未解锁${PLAIN}  " ;;
-        *) echo -ne "✘ ${name}: ${YELLOW}检测失败${PLAIN}  " ;;
-    esac
-}
-
-# --- 执行检测并存入变量 ---
-# AI Tools
-check_u "https://chatgpt.com" "Just a moment" && r_gpt=$? || r_gpt=$?
-check_u "https://claude.ai" "App unavailable" && r_cld=$? || r_cld=$?
-check_u "https://gemini.google.com" "not available" && r_gem=$? || r_gem=$?
-
-# Streaming
-check_u "https://www.netflix.com/title/80018499" "Forbidden" && r_nfl=$? || r_nfl=$?
-check_u "https://www.disneyplus.com" "unavailable" && r_dis=$? || r_dis=$?
-check_u "https://www.youtube.com/premium" "not available" && r_ytp=$? || r_ytp=$?
-check_u "https://www.primevideo.com" "not available" && r_prm=$? || r_prm=$?
-
-# Others
-check_u "https://www.tiktok.com" "not available" && r_tik=$? || r_tik=$?
-check_u "https://www.spotify.com/us/" "not available" && r_spt=$? || r_spt=$?
-check_u "https://www.instagram.com" "not available" && r_ins=$? || r_ins=$?
-check_u "https://twitter.com" "not available" && r_twit=$? || r_twit=$?
-
-# --- 区域专项探测 (修复多行匹配引起的挂起) ---
-yt_region=$(curl -sL --max-time 10 "https://www.youtube.com/red" 2>/dev/null | grep -m 1 -o 'country_code=[A-Z]\{2\}' | cut -d= -f2)
-tk_region=$(curl -sI https://www.tiktok.com/ 2>/dev/null | grep -i "x-tiktok-region" | awk '{print $2}' | tr -d '\r')
-
-# --- 统一输出 ---
-echo -e "${CYAN}[AI Tools]  ${PLAIN}$(format_s "ChatGPT" $r_gpt)$(format_s "Claude" $r_cld)$(format_s "Gemini" $r_gem)"
-echo -e "${CYAN}[Streaming] ${PLAIN}$(format_s "Netflix" $r_nfl)$(format_s "Disney+" $r_dis)$(format_s "YouTube" $r_ytp)$(format_s "Prime" $r_prm)"
-echo -e "${CYAN}[Social]    ${PLAIN}$(format_s "TikTok" $r_tik)$(format_s "Spotify" $r_spt)$(format_s "Instagram" $r_ins)$(format_s "Twitter" $r_twit)"
-
-echo -e "----------------------------------------------------------------"
-[ -n "$yt_region" ] && echo -ne "🎥 YouTube 区域: ${GREEN}${yt_region}${PLAIN}  " || echo -ne "🎥 YouTube 区域: ${RED}检测失败${PLAIN}  "
-[ -n "$tk_region" ] && echo -e "🎵 TikTok 区域: ${GREEN}${tk_region}${PLAIN}" || echo -e "🎵 TikTok 区域: ${RED}检测失败${PLAIN}"
-
+# 5. 集成测试脚本合集菜单 (取代原有的解锁检测)
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${YELLOW}[测试脚本合集]${PLAIN}"
+echo -e " 1.  YABS 性能测试 (精简版)"
+echo -e " 2.  融合怪 (全能系统测评)"
+echo -e " 3.  流媒体解锁测试 (RegionCheck)"
+echo -e " 4.  三网回程线路测试"
+echo -e " 5.  Speedtest 测速"
+echo -e " 6.  LemonBench 综合测试"
+echo -e " 0.  退出脚本"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+read -p "请输入数字选择: " test_choice
+
+case $test_choice in
+    1)
+        curl -sL yabs.sh | bash -s -- -i -f -z
+        ;;
+    2)
+        bash <(curl -L -s https://gitlab.com/spiritlhl/ecs/-/raw/main/ecs.sh)
+        ;;
+    3)
+        bash <(curl -L -s check.unlock.media)
+        ;;
+    4)
+        bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh)
+        ;;
+    5)
+        curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3
+        ;;
+    6)
+        curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast
+        ;;
+    0)
+        exit 0
+        ;;
+    *)
+        echo -e "${RED}无效选择，脚本退出${PLAIN}"
+        ;;
+esac
