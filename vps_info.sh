@@ -9,6 +9,22 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
+# --- 快捷键配置开始 ---
+# 获取当前脚本的绝对路径
+SCRIPT_PATH=$(readlink -f "$0")
+
+# 检查并设置快捷键 vps
+if [ "$EUID" -eq 0 ]; then
+    if [ ! -f "/usr/local/bin/vps" ]; then
+        echo -e "#!/bin/bash\nbash $SCRIPT_PATH \"\$@\"" > /usr/local/bin/vps
+        chmod +x /usr/local/bin/vps
+        SHORTCUT_MSG="${GREEN}快捷键已设置为 vps, 下次运行输入 vps 可快速启动此脚本${PLAIN}"
+    else
+        SHORTCUT_MSG="${CYAN}快捷键: vps${PLAIN}"
+    fi
+fi
+# --- 快捷键配置结束 ---
+
 clear
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
