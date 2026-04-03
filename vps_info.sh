@@ -107,50 +107,68 @@ echo ""
 get_ip_info "IPv6" "6"
 echo -e "----------------------------------------------------------------"
 
-# 5. 全球服务解锁检测 (增强型)
+# 5. 全球服务解锁检测 (稳定性增强版)
 echo -e "${YELLOW}[全球主流服务解锁检测]${PLAIN}"
 
+# 核心检测函数：返回 0 为解锁，1 为失败，2 为未解锁
 check_u() {
-    local n=$1; local u=$2; local e=$3
-    # 增加模拟 User-Agent，防止被网站直接 403
-    local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    local res=$(curl -s -L -A "$ua" --max-time 10 "$u" 2>/dev/null)
+    local url=$2; local err_key=$3
+    local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    # 使用 --max-time 限制，并确保数据完整抓取后再处理
+    local res=$(curl -s -L -A "$ua" --max-time 10 "$url" 2>/dev/null)
     
     if [ -z "$res" ]; then
-        echo -e "✘ $n: ${RED}连接失败${PLAIN}"
-    elif echo "$res" | grep -qi "$e"; then
-        echo -e "✘ $n: ${RED}未解锁${PLAIN}"
+        return 1 # 失败
+    elif echo "$res" | grep -qi "$err_key"; then
+        return 2 # 未解锁
     else
-        echo -e "✔ $n: ${GREEN}已解锁${PLAIN}"
+        return 0 # 已解锁
+    fi
+}
+
+# 格式化输出函数：解决 Broken pipe 的关键
+print_res() {
+    local name=$1; local status=$2
+    if [ "$status" -eq 0 ]; then
+        echo -ne "✔ ${name}: ${GREEN}已解锁${PLAIN}  "
+    elif [ "$status" -eq 2 ]; then
+        echo -ne "✘ ${name}: ${RED}未解锁${PLAIN}  "
+    else
+        echo -ne "✘ ${name}: ${YELLOW}失败${PLAIN}  "
     fi
 }
 
 # --- AI 工具类 ---
-echo -n -e "${CYAN}[AI Tools]   ${PLAIN}"
-check_u "ChatGPT" "https://chatgpt.com" "Just a moment"
-check_u "Claude" "https://claude.ai" "App unavailable"
-check_u "Gemini" "https://gemini.google.com" "not available"
+echo -e "${CYAN}[AI Tools]${PLAIN}"
+check_u "ChatGPT" "https://chatgpt.com" "Just a moment" && r1=$? || r1=$?
+check_u "Claude" "https://claude.ai" "App unavailable" && r2=$? || r2=$?
+check_u "Gemini" "https://gemini.google.com" "not available" && r3=$? || r3=$?
+print_res "ChatGPT" $r1; print_res "Claude" $r2; print_res "Gemini" $r3; echo ""
 
 # --- 流媒体类 ---
-echo -n -e "${CYAN}[Streaming]  ${PLAIN}"
-check_u "Netflix" "https://www.netflix.com/title/80018499" "Forbidden"
-check_u "Disney+" "https://www.disneyplus.com" "unavailable"
-check_u "YouTube" "https://www.youtube.com/premium" "not available"
-check_u "PrimeVideo" "https://www.primevideo.com" "not available"
+echo -e "${CYAN}[Streaming]${PLAIN}"
+check_u "Netflix" "https://www.netflix.com/title/80018499" "Forbidden" && r4=$? || r4=$?
+check_u "Disney+" "https://www.disneyplus.com" "unavailable" && r5=$? || r5=$?
+check_u "YouTube" "https://www.youtube.com/premium" "not available" && r6=$? || r6=$?
+check_u "PrimeVideo" "https://www.primevideo.com" "not available" && r7=$? || r7=$?
+print_res "Netflix" $r4; print_res "Disney+" $r5; print_res "YouTube" $r6; print_res "Prime" $r7; echo ""
 
-# --- 其他服务 ---
-echo -n -e "${CYAN}[Others]     ${PLAIN}"
-check_u "TikTok" "https://www.tiktok.com" "not available"
-check_u "Spotify" "https://www.spotify.com" "not available"
-check_u "Instagram" "https://www.instagram.com" "not available"
-check_u "Twitter/X" "https://twitter.com" "not available"
+# --- 社交与其它 ---
+echo -e "${CYAN}[Others]${PLAIN}"
+check_u "TikTok" "https://www.tiktok.com" "not available" && r8=$? || r8=$?
+check_u "Spotify" "https://www.spotify.com/us/" "not available" && r9=$? || r9=$?
+check_u "Twitter" "https://twitter.com" "not available" && r10=$? || r10=$?
+print_res "TikTok" $r8; print_res "Spotify" $r9; print_res "Twitter" $r10; echo ""
 
-# --- YouTube 节点区域专项探测 ---
-yt_region=$(curl -sL --max-time 10 "https://www.youtube.com/red" | grep -o 'country_code=[A-Z]\{2\}' | cut -d= -f2)
+# --- YouTube 区域专项探测 ---
+# 增加一次跳转处理
+yt_region=$(curl -sL --max-time 10 "https://www.youtube.com/red" 2>/dev/null | grep -o 'country_code=[A-Z]\{2\}' | head -n1 | cut -d= -f2)
 if [ -n "$yt_region" ]; then
     echo -e "🎥 YouTube 区域 : ${GREEN}$yt_region${PLAIN}"
 else
-    echo -e "🎥 YouTube 区域 : ${RED}检测失败${PLAIN}"
+    # 尝试备用节点探测
+    yt_region=$(curl -sI https://www.youtube.com/red 2>/dev/null | grep -i "X-YouTube-Ad-Signals" | grep -o 'dt=[A-Z]\{2\}' | cut -d= -f2)
+    [ -n "$yt_region" ] && echo -e "🎥 YouTube 区域 : ${GREEN}$yt_region${PLAIN}" || echo -e "🎥 YouTube 区域 : ${RED}检测失败${PLAIN}"
 fi
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
