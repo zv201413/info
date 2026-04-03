@@ -15,7 +15,19 @@ if [ "$EUID" -eq 0 ]; then
     rm -f /usr/local/bin/vps
 
     # 写入新的强健版快捷键逻辑
-    wrapper_content='#!/bin/bash
+    script_path=$(realpath "$0")
+    if [ -f "$script_path" ] && [[ "$script_path" == *"/vps_info"* ]]; then
+        # 如果是本地运行的脚本，优先使用本地路径，方便实时修改测试
+        wrapper_content="#!/bin/bash
+if [ -f \"$script_path\" ]; then
+    bash \"$script_path\" \"\$@\"
+else
+    curl -fsSL \"https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh\" -o /tmp/vps_info_latest.sh
+    bash /tmp/vps_info_latest.sh \"\$@\"
+    rm -f /tmp/vps_info_latest.sh
+fi"
+    else
+        wrapper_content='#!/bin/bash
 SCRIPT_URL="https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh"
 TEMP_SCRIPT="/tmp/vps_info_latest.sh"
 
@@ -29,9 +41,11 @@ else
     echo -e "\033[0;31m无法在线获取脚本，请检查网络连接\033[0m"
     exit 1
 fi'
+    fi
 
     echo "$wrapper_content" > /usr/local/bin/vps
     chmod +x /usr/local/bin/vps
+    hash -r >/dev/null 2>&1
     SHORTCUT_MSG="${GREEN}快捷键设置成功! 下次输入 vps 即可运行${PLAIN}"
 else
     SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
@@ -85,10 +99,94 @@ audit_config() {
     if [ -f "$conf_path" ]; then
         echo -e "--- ${PURPLE}${proc_name}${PLAIN} ---"
         echo -e "路径: ${CYAN}$conf_path${PLAIN}"
-        if grep -qiE "wireguard|warp|x-warp|cloudflared" "$conf_path" >/dev/null 2>&1; then
-            echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口${PLAIN}"
+        
+        local is_sb="false"
+        [ "$proc_name" == "Sing-box" ] && is_sb="true"
+        
+        local result=$(python3 -c "
+import json, sys
+try:
+    with open('$conf_path', 'r') as f:
+        c = json.load(f)
+except:
+    print('ERROR')
+    sys.exit(0)
+
+is_sb = ('$is_sb' == 'true')
+w_tags = set()
+
+if not is_sb:
+    obs = c.get('outbounds', [])
+    for o in obs:
+        p = o.get('protocol', '').lower()
+        t = o.get('tag', '')
+        if p == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
+    if not w_tags:
+        print('DIRECT')
+        sys.exit(0)
+    
+    d_out = obs[0].get('tag') if obs else 'direct'
+    rules = c.get('routing', {}).get('rules', [])
+    
+    w_rt = False
+    all_d = False
+    for r in rules:
+        t = r.get('outboundTag', '')
+        ips = r.get('ip', [])
+        if isinstance(ips, str): ips = [ips]
+        
+        ca = False
+        if '0.0.0.0/0' in ips or '::/0' in ips: ca = True
+        elif r.get('network') in ['tcp,udp', 'tcp', 'udp'] and not r.get('domain') and not ips: ca = True
+        
+        if t in w_tags:
+            w_rt = True; break
+        elif ca:
+            all_d = True; break
+            
+    if w_rt: print('WARP')
+    elif all_d: print('DIRECT')
+    elif d_out in w_tags: print('WARP')
+    else: print('DIRECT')
+
+else:
+    obs = c.get('outbounds', [])
+    for o in obs:
+        ty = o.get('type', '').lower()
+        t = o.get('tag', '')
+        if ty == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
+    if not w_tags:
+        print('DIRECT')
+        sys.exit(0)
+        
+    d_out = obs[0].get('tag') if obs else 'direct'
+    rules = c.get('route', {}).get('rules', [])
+    
+    w_rt = False
+    all_d = False
+    for r in rules:
+        t = r.get('outbound', '')
+        ca = True
+        for k in ['domain', 'domain_suffix', 'domain_keyword', 'domain_regex', 'geosite', 'ip_cidr', 'geoip']:
+            if r.get(k): ca = False
+            
+        if t in w_tags:
+            w_rt = True; break
+        elif ca:
+            all_d = True; break
+            
+    if w_rt: print('WARP')
+    elif all_d: print('DIRECT')
+    elif d_out in w_tags: print('WARP')
+    else: print('DIRECT')
+" 2>/dev/null)
+
+        if [ "$result" == "WARP" ]; then
+            echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口 (路由规则已生效)${PLAIN}"
+        elif [ "$result" == "DIRECT" ]; then
+            echo -e "出站: ${RED}✘ 纯直连出站 (未设置WARP出站或已被路由规则绕过)${PLAIN}"
         else
-            echo -e "出站: ${RED}✘ 纯直连/普通代理${PLAIN}"
+            echo -e "出站: ${YELLOW}⚠️ 配置文件解析失败或未使用标准格式${PLAIN}"
         fi
     fi
 }
