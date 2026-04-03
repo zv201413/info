@@ -228,21 +228,56 @@ get_ip_info "IPv6" "6"
 # 5. 测试菜单
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "${YELLOW}[测试脚本合集]${PLAIN}"
-echo -e " 1.  融合怪 (全能系统测评)"
-echo -e " 2.  流媒体解锁测试 (RegionCheck)"
-echo -e " 3.  三网回程线路测试"
-echo -e " 4.  Speedtest 测速"
-echo -e " 5.  LemonBench 综合测试"
-echo -e " 0.  退出脚本"
+echo -e "${GREEN}---- IP及解锁状态检测 -------${PLAIN}"
+echo -e " 1. ChatGPT解锁状态检测"
+echo -e " 2. Region流媒体解锁测试"
+echo -e " 3. yeahwu流媒体解锁检测"
+echo -e " 4. xykt_IP质量体检脚本"
+echo -e "${CYAN}---- 网络线路测速 -----------${PLAIN}"
+echo -e " 5. Superspeed三网测速"
+echo -e " 6. nxtrace快速回程测试"
+echo -e " 7. ludashi2020三网线路测试"
+echo -e " 8. mtr_trace三网回程线路测试"
+echo -e " 9. besttrace三网回程延迟路由测试"
+echo -e "${GREEN}---- 硬件性能测试 -----------${PLAIN}"
+echo -e "10. icu/gb5 CPU性能测试脚本"
+echo -e "${PURPLE}---- 综合性测试 -------------${PLAIN}"
+echo -e "11. bench性能测试"
+echo -e "12. spiritysdx融合怪测评"
+echo -e "13. Speedtest 测速"
+echo -e "14. LemonBench 综合测试"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e " 0. 退出脚本"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 read -p "请输入数字选择: " test_choice
 
 case "$test_choice" in
-    1) bash <(curl -sL https://github.com/spiritLHLS/ecs/raw/main/ecs.sh) ;;
-    2) bash <(curl -L -s check.unlock.media) ;;
-    3) bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh) ;;
-    4) curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
-    5) curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
+    1) clear; bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh) ;;
+    2) clear; bash <(curl -L -s check.unlock.media) ;;
+    3) 
+       clear
+       if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
+       wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash 
+       ;;
+    4) clear; bash <(curl -Ls IP.Check.Place) ;;
+    5) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
+    6) 
+       clear
+       curl nxtrace.org/nt | bash
+       nexttrace --fast-trace --tcp
+       ;;
+    7) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
+    8) clear; curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh | bash ;;
+    9) 
+       clear
+       if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
+       wget -qO- git.io/besttrace | bash 
+       ;;
+    10) clear; bash <(curl -sL bash.icu/gb5) ;;
+    11) clear; curl -Lso- bench.sh | bash ;;
+    12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
+    13) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    14) clear; curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
