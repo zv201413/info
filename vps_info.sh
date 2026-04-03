@@ -9,19 +9,30 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 快捷键配置 (适配 GitHub 在线执行) ---
+# --- 快捷键配置 (完美复刻 ssh_tool 方案) ---
 if [ "$EUID" -eq 0 ]; then
-    if [ ! -f "/usr/local/bin/vps" ]; then
-        # 写入快捷指令，每次执行都会拉取你的最新 GitHub 脚本
-        cat > /usr/local/bin/vps << 'EOF'
-#!/bin/bash
-bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh) "$@"
-EOF
-        chmod +x /usr/local/bin/vps
-        SHORTCUT_MSG="${GREEN}快捷键已设置! 下次直接输入 vps 即可运行${PLAIN}"
-    else
-        SHORTCUT_MSG="${CYAN}快捷键: vps${PLAIN}"
-    fi
+    # 无论是否存在，强制清理旧的错误快捷键
+    rm -f /usr/local/bin/vps
+
+    # 写入新的强健版快捷键逻辑
+    wrapper_content='#!/bin/bash
+SCRIPT_URL="https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh"
+TEMP_SCRIPT="/tmp/vps_info_latest.sh"
+
+# 下载最新脚本到临时目录
+if curl -fsSL "$SCRIPT_URL" -o "$TEMP_SCRIPT" >/dev/null 2>&1; then
+    chmod +x "$TEMP_SCRIPT" >/dev/null 2>&1
+    bash "$TEMP_SCRIPT" "$@"
+    # 运行完毕后销毁痕迹
+    rm -f "$TEMP_SCRIPT" >/dev/null 2>&1
+else
+    echo -e "\033[0;31m无法在线获取脚本，请检查网络连接\033[0m"
+    exit 1
+fi'
+
+    echo "$wrapper_content" > /usr/local/bin/vps
+    chmod +x /usr/local/bin/vps
+    SHORTCUT_MSG="${GREEN}快捷键设置成功! 下次输入 vps 即可运行${PLAIN}"
 else
     SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
