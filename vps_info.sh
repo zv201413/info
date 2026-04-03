@@ -116,23 +116,22 @@ get_ip_info "IPv6" "6"
 # 5. 测试菜单
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "${YELLOW}[测试脚本合集]${PLAIN}"
-echo -e " 1.  YABS 性能测试 (精简版)"
-echo -e " 2.  融合怪 (全能系统测评)"
-echo -e " 3.  流媒体解锁测试 (RegionCheck)"
-echo -e " 4.  三网回程线路测试"
-echo -e " 5.  Speedtest 测速"
-echo -e " 6.  LemonBench 综合测试"
+echo -e " 1.  融合怪 (全能系统测评)"
+echo -e " 2.  流媒体解锁测试 (RegionCheck)"
+echo -e " 3.  三网回程线路测试"
+echo -e " 4.  Speedtest 测速"
+echo -e " 5.  LemonBench 综合测试"
 echo -e " 0.  退出脚本"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 read -p "请输入数字选择: " test_choice
 
 case $test_choice in
-    1) curl -sL yabs.sh | bash -s -- -i -f -z ;;
-    2) bash <(curl -sL https://github.com/spiritLHLS/ecs/raw/main/ecs.sh) ;;
-    3) bash <(curl -L -s check.unlock.media) ;;
-    4) bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh) ;;
-    5) curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
-    6) curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
+case $test_choice in
+    1) bash <(curl -sL https://github.com/spiritLHLS/ecs/raw/main/ecs.sh) ;;
+    2) bash <(curl -L -s check.unlock.media) ;;
+    3) bash <(curl -L -s https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh) ;;
+    4) curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    5) curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
