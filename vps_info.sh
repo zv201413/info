@@ -46,7 +46,7 @@ echo -n -e "IPv6 抖动 (CF v6): "
 get_jitter "2606:4700:4700::1111" "ping6"
 echo -e "----------------------------------------------------------------"
 
-# 动态定位 Xray/Sing-box 路径
+# 3. 进程审计
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
 audit_config() {
     local proc_name=$1; local conf_path=$2
@@ -62,41 +62,62 @@ s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
 echo -e "----------------------------------------------------------------"
 
-# 3. IP 深度画像 (修正广播 IP 逻辑)
+# 4. IP 深度画像 (核心修正点)
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
 get_ip_info() {
-    local version=$1; local curl_flag=$2
-    # 针对 IPv6 使用更稳的探测点，且增加重试逻辑
-    local api_url="http://ip-api.com/json/?fields=status,country,city,isp,as,proxy,hosting,query"
+    local version=$1; local flag=$2
+    local query_ip=""
     
-    # 如果是探测 IPv6，使用特定的 v6 探测域名，防止被强制解析到 IPv4
-    [ "$curl_flag" == "6" ] && api_url="http://v6.ip-api.com/json/?fields=status,country,city,isp,as,proxy,hosting,query"
+    # 尝试多个最稳定的获取 IP 接口
+    local endpoints=(
+        "https://api$flag.ipify.org"
+        "https://ifconfig.io/ip"
+        "http://v$flag.ipv6-test.com/api/myip.php"
+    )
 
-    local data=$(curl -$curl_flag -s --max-time 8 "$api_url")
-    
-    # 只要返回的数据包含 query (即 IP 地址)，就认为成功，不再死磕 "success" 关键字
-    if [[ "$data" == *"query"* ]]; then
-        get_v() { echo "$data" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
-        # ... (后续打印逻辑保持不变) ...
-        echo -e "出口地址 : ${CYAN}$(get_v "query")${PLAIN}"
-        # ...
+    for url in "${endpoints[@]}"; do
+        query_ip=$(curl -$flag -s --max-time 5 "$url" 2>/dev/null | grep -oE '([0-9a-fA-F.:]{7,45})' | head -n1)
+        [[ -n "$query_ip" ]] && break
+    done
+
+    if [[ -n "$query_ip" ]]; then
+        # 拿到 IP 后，强制用 IPv4 查询画像，避开 API 对 IPv6 的限流
+        local info=$(curl -4 -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
+        
+        echo -e "${PURPLE}[$version 网络]${PLAIN}"
+        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}"
+        
+        if [[ "$info" == *"success"* ]]; then
+            get_v() { echo "$info" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
+            local is_h=$(get_v "hosting"); local is_p=$(get_v "proxy")
+            echo -e "运营商   : $(get_v "isp")"
+            echo -e "地理位置 : ${GREEN}$(get_v "country") - $(get_v "city")${PLAIN}"
+            echo -e "IP 类型   : $([ "$is_h" == "true" ] && echo -e "${RED}IDC机房${PLAIN}" || echo -e "${GREEN}住宅/原生${PLAIN}")"
+            echo -e "风控评价 : $([ "$is_p" == "true" ] && echo -e "${RED}高风险${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
+        else
+            echo -e "画像数据 : ${YELLOW}画像库请求受限，仅显示 IP${PLAIN}"
+        fi
     else
-        echo -e "${PURPLE}[$version 网络]${PLAIN} : ${RED}接口请求受限或线路不可达${PLAIN}"
+        echo -e "${PURPLE}[$version 网络]${PLAIN} : ${RED}未检测到有效连接 (或接口被屏蔽)${PLAIN}"
     fi
 }
+
 get_ip_info "IPv4" "4"
 echo ""
 get_ip_info "IPv6" "6"
 echo -e "----------------------------------------------------------------"
 
-# 4. 全球服务解锁检测
+# 5. 全球服务解锁检测 (增强型)
 echo -e "${YELLOW}[全球主流服务解锁检测]${PLAIN}"
+
 check_u() {
     local n=$1; local u=$2; local e=$3
-    # 修复 Broken pipe，将输出重定向
-    local res=$(curl -s -L --max-time 10 "$u" 2>/dev/null)
+    # 增加模拟 User-Agent，防止被网站直接 403
+    local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    local res=$(curl -s -L -A "$ua" --max-time 10 "$u" 2>/dev/null)
+    
     if [ -z "$res" ]; then
-        echo -e "✘ $n: ${RED}连接失败/被屏蔽${PLAIN}"
+        echo -e "✘ $n: ${RED}连接失败${PLAIN}"
     elif echo "$res" | grep -qi "$e"; then
         echo -e "✘ $n: ${RED}未解锁${PLAIN}"
     else
@@ -104,9 +125,32 @@ check_u() {
     fi
 }
 
-check_u "Netflix" "https://www.netflix.com/title/80018499" "Forbidden"
+# --- AI 工具类 ---
+echo -n -e "${CYAN}[AI Tools]   ${PLAIN}"
 check_u "ChatGPT" "https://chatgpt.com" "Just a moment"
-check_u "Gemini" "https://gemini.google.com" "not available"
 check_u "Claude" "https://claude.ai" "App unavailable"
+check_u "Gemini" "https://gemini.google.com" "not available"
+
+# --- 流媒体类 ---
+echo -n -e "${CYAN}[Streaming]  ${PLAIN}"
+check_u "Netflix" "https://www.netflix.com/title/80018499" "Forbidden"
+check_u "Disney+" "https://www.disneyplus.com" "unavailable"
+check_u "YouTube" "https://www.youtube.com/premium" "not available"
+check_u "PrimeVideo" "https://www.primevideo.com" "not available"
+
+# --- 其他服务 ---
+echo -n -e "${CYAN}[Others]     ${PLAIN}"
+check_u "TikTok" "https://www.tiktok.com" "not available"
+check_u "Spotify" "https://www.spotify.com" "not available"
+check_u "Instagram" "https://www.instagram.com" "not available"
+check_u "Twitter/X" "https://twitter.com" "not available"
+
+# --- YouTube 节点区域专项探测 ---
+yt_region=$(curl -sL --max-time 10 "https://www.youtube.com/red" | grep -o 'country_code=[A-Z]\{2\}' | cut -d= -f2)
+if [ -n "$yt_region" ]; then
+    echo -e "🎥 YouTube 区域 : ${GREEN}$yt_region${PLAIN}"
+else
+    echo -e "🎥 YouTube 区域 : ${RED}检测失败${PLAIN}"
+fi
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
