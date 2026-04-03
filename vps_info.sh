@@ -111,7 +111,7 @@ case $test_choice in
         curl -sL yabs.sh | bash -s -- -i -f -z
         ;;
     2)
-        bash <(curl -L -s https://gitlab.com/spiritlhl/ecs/-/raw/main/ecs.sh)
+        bash <(curl -sL https://raw.githubusercontent.com/spiritLHLS/ecs/main/ecs.sh)
         ;;
     3)
         bash <(curl -L -s check.unlock.media)
