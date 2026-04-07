@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>甬哥-ArgoSBX小钢炮💣一键SSH V2026——zv修改版</title>
   <style>
-    /* 此处完全复写原版 CSS，确保视觉一致 */
+    /* 完全保留原版 CSS 变量与样式 */
     :root {
       --bg:#0b1020; --card:#121831; --ink:#e9edf7; --sub:#b7c1d9; --line:#263255;
       --acc:#4f7cff; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
@@ -17,123 +17,154 @@
       --acc:#4f7cff; --input-bg:#f7fafc; --button-bg-dark:#edf2f7; --button-bg-light:#e2e8f0;
       --body-bg: #f7fafc;
     }
-    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--body-bg); color: var(--ink); min-height: 100vh; padding: 20px; transition: 0.3s; }
-    .container { width: 100%; max-width: 850px; margin: 0 auto; background: var(--card); border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--body-bg); color: var(--ink); min-height: 100vh; transition: 0.3s; padding: 20px; }
+    .container { width: 100%; max-width: 900px; margin: 0 auto; background: var(--card); border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; }
     .header { padding: 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
     .tabs { display: flex; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--line); }
-    .tab { padding: 12px 25px; cursor: pointer; color: var(--sub); font-size: 0.9rem; font-weight: bold; }
-    .tab.active { color: var(--acc); border-bottom: 2px solid var(--acc); background: rgba(79, 124, 255, 0.05); }
+    .tab { padding: 12px 25px; cursor: pointer; color: var(--sub); font-size: 0.9rem; font-weight: bold; border-right: 1px solid var(--line); }
+    .tab.active { color: var(--acc); background: rgba(79, 124, 255, 0.05); border-bottom: 2px solid var(--acc); }
     .content { padding: 25px; }
-    .section-title { font-size: 0.8rem; font-weight: bold; color: var(--acc); text-transform: uppercase; margin: 20px 0 15px 0; display: flex; align-items: center; gap: 10px; }
+    
+    .section-title { font-size: 0.8rem; font-weight: bold; color: var(--acc); text-transform: uppercase; margin: 25px 0 15px 0; display: flex; align-items: center; gap: 10px; }
     .section-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+
+    /* 协议矩阵布局：勾选 | 协议名 | 内部端口 | 外部端口 */
+    .protocol-row { 
+      display: grid; 
+      grid-template-columns: 40px 140px 1fr 1fr; 
+      gap: 10px; 
+      align-items: center; 
+      padding: 10px; 
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .protocol-row:hover { background: rgba(255,255,255,0.02); }
+    .protocol-header { font-size: 0.75rem; color: var(--sub); font-weight: bold; border-bottom: 1px solid var(--line); padding-bottom: 5px; margin-bottom: 5px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
     .item { display: flex; flex-direction: column; gap: 6px; }
     label { font-size: 0.75rem; color: var(--sub); }
-    input, select { padding: 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--input-bg); color: var(--ink); font-size: 0.9rem; outline: none; }
+    input, select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--input-bg); color: var(--ink); font-size: 0.9rem; outline: none; }
     input:focus { border-color: var(--acc); }
-    
-    /* 协议勾选样式 */
-    .protocol-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; background: rgba(0,0,0,0.1); padding: 15px; border-radius: 8px; border: 1px solid var(--line); }
-    .check-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; color: var(--sub); }
-    .check-item input { width: auto; cursor: pointer; }
-    .check-item:hover { color: var(--ink); }
 
     .terminal { margin-top: 25px; background: #000; border-radius: 8px; border: 1px solid var(--line); padding: 15px; }
-    textarea { width: 100%; background: transparent; border: none; color: #00ff00; font-family: monospace; font-size: 0.85rem; resize: none; outline: none; line-height: 1.6; }
+    textarea { width: 100%; background: transparent; border: none; color: #00ff00; font-family: 'Consolas', monospace; font-size: 0.85rem; resize: none; outline: none; line-height: 1.6; }
+    
     .btn-group { display: flex; gap: 10px; margin-top: 20px; }
-    .btn { flex: 1; padding: 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn { flex: 1; padding: 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
     .btn-primary { background: var(--acc); color: white; }
     .btn-sub { background: var(--button-bg-dark); color: var(--sub); border: 1px solid var(--line); }
-    #toast { visibility: hidden; background: var(--ok); color: white; padding: 10px 20px; border-radius: 5px; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; }
-    #toast.show { visibility: visible; animation: f-in 0.3s forwards; }
-    @keyframes f-in { from {top: 0; opacity: 0;} to {top: 20px; opacity: 1;} }
+
+    #toast { visibility: hidden; background: var(--ok); color: white; padding: 10px 20px; border-radius: 5px; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; transition: 0.3s; opacity: 0; }
+    #toast.show { visibility: visible; opacity: 1; top: 30px; }
   </style>
 </head>
 <body>
 
-<div id="toast">复制成功</div>
+<div id="toast">已复制到剪贴板</div>
 
 <div class="container">
   <div class="header">
-    <h1>💣 ArgoSBX <span style="font-size:0.8rem; vertical-align:middle; opacity:0.6;">V2026 PRO</span></h1>
-    <button onclick="document.body.classList.toggle('light-mode')" class="btn-sub" style="padding: 5px 15px;">🌓 切换主题</button>
+    <h1 style="margin:0; font-size:1.2rem; color:var(--acc);">💣 ArgoSBX V2026 PRO —— zv修改版</h1>
+    <button onclick="document.body.classList.toggle('light-mode')" class="btn-sub" style="padding:5px 15px;">🌓 主题</button>
   </div>
 
   <div class="tabs">
-    <div class="tab active">部署配置</div>
-    <div class="tab">高级管理</div>
-    <div class="tab">使用教程</div>
+    <div class="tab active">安装部署</div>
+    <div class="tab">高级设置</div>
+    <div class="tab">管理命令</div>
   </div>
 
   <div class="content">
-    <div class="section-title">协议选项 (勾选即开启)</div>
-    <div style="margin-bottom:10px; font-size:0.75rem; color:var(--warn);">Xray 协议：</div>
-    <div class="protocol-grid">
-      <label class="check-item"><input type="checkbox" data-var="vls_ws" value="yes"> Vless-WS</label>
-      <label class="check-item"><input type="checkbox" data-var="vm_ws" value="yes"> Vmess-WS</label>
-      <label class="check-item"><input type="checkbox" data-var="tro_ws" value="yes"> Trojan-WS</label>
-      <label class="check-item"><input type="checkbox" data-var="vls_re" value="yes"> Vless-Reality</label>
-    </div>
-    <div style="margin:15px 0 10px 0; font-size:0.75rem; color:var(--acc);">Sing-box 协议：</div>
-    <div class="protocol-grid">
-      <label class="check-item"><input type="checkbox" data-var="hy2" value="yes"> Hysteria 2</label>
-      <label class="check-item"><input type="checkbox" data-var="tuic" value="yes"> TUIC V5</label>
-      <label class="check-item"><input type="checkbox" data-var="vls_grpc" value="yes"> Vless-gRPC</label>
+    <div class="section-title">执行动作</div>
+    <select id="main_cmd" style="width:100%; margin-bottom:20px;">
+      <option value="bash argosbx.sh">🚀 启动 / 安装 (自动识别参数)</option>
+      <option value="bash argosbx.sh status">📊 查看状态 (IP/端口/进程)</option>
+      <option value="bash argosbx.sh uninstall">🗑️ 彻底卸载</option>
+    </select>
+
+    <div class="section-title">协议与端口一一对应 (勾选开启)</div>
+    <div class="protocol-row protocol-header">
+      <div>选</div><div>协议名称</div><div>内部监听 (In)</div><div>外部映射 (Out)</div>
     </div>
 
-    <div class="section-title">核心参数设置</div>
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="vls_ws"><div>Vless-WS</div>
+      <input type="number" data-port="vls_ws_in" placeholder="随机">
+      <input type="number" data-port="vls_ws_out" placeholder="443">
+    </div>
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="vm_ws"><div>Vmess-WS</div>
+      <input type="number" data-port="vm_ws_in" placeholder="随机">
+      <input type="number" data-port="vm_ws_out" placeholder="443">
+    </div>
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="vls_re"><div>Vless-Reality</div>
+      <input type="number" data-port="vls_re_in" placeholder="随机">
+      <input type="number" data-port="vls_re_out" placeholder="443">
+    </div>
+
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="hy2"><div>Hysteria 2</div>
+      <input type="number" data-port="hy2_in" placeholder="随机">
+      <input type="number" data-port="hy2_out" placeholder="443">
+    </div>
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="tuic"><div>TUIC V5</div>
+      <input type="number" data-port="tuic_in" placeholder="随机">
+      <input type="number" data-port="tuic_out" placeholder="443">
+    </div>
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="vls_grpc"><div>Vless-gRPC</div>
+      <input type="number" data-port="vls_grpc_in" placeholder="随机">
+      <input type="number" data-port="vls_grpc_out" placeholder="443">
+    </div>
+    <div class="protocol-row">
+      <input type="checkbox" data-proto="vm_grpc"><div>Vmess-gRPC</div>
+      <input type="number" data-port="vm_grpc_in" placeholder="随机">
+      <input type="number" data-port="vm_grpc_out" placeholder="443">
+    </div>
+
+    <div class="section-title">基础全局参数</div>
     <div class="grid">
       <div class="item">
         <label>节点名称前缀 (np)</label>
-        <input type="text" id="np" data-var="np" placeholder="例如: 甬哥US" />
+        <input type="text" data-var="np" placeholder="甬哥US">
       </div>
       <div class="item">
-        <label>内部监听端口 (in_port)</label>
-        <input type="number" id="in_port" data-var="in_port" placeholder="随机" />
-      </div>
-      <div class="item">
-        <label>外部映射端口 (out_port)</label>
-        <input type="number" id="out_port" data-var="out_port" placeholder="443" />
-      </div>
-      <div class="item">
-        <label>优先出站策略 (ip_pref)</label>
-        <select id="ip_pref" data-var="ip_pref">
+        <label>优先出站 (ip_pref)</label>
+        <select data-var="ip_pref">
           <option value="">自动路由</option>
-          <option value="4">IPv4 优先</option>
-          <option value="6">IPv6 优先</option>
+          <option value="4">IPv4优先</option>
+          <option value="6">IPv6优先</option>
         </select>
       </div>
-    </div>
-
-    <div class="section-title">Argo 隧道设置</div>
-    <div class="grid">
-      <div class="item" style="grid-column: span 2;">
-        <label>Argo Token (ARGO_AUTH)</label>
-        <input type="text" data-var="ARGO_AUTH" placeholder="eyJhIjoi... (留空则启用临时隧道)" />
-      </div>
       <div class="item">
-        <label>固定隧道域名 (ARGO_DOMAIN)</label>
-        <input type="text" data-var="ARGO_DOMAIN" placeholder="vls.abc.com" />
-      </div>
-      <div class="item">
-        <label>Argo 优选IP/域名 (argo_ip)</label>
-        <input type="text" data-var="argo_ip" placeholder="cf.shun.com" />
+        <label>直连自定义地址</label>
+        <input type="text" data-var="direct_ip" placeholder="VPS 真实 IP">
       </div>
     </div>
 
-    <div class="section-title">GitHub Gist 备份同步</div>
+    <div class="section-title">Argo 隧道与 Gist 备份</div>
     <div class="grid">
       <div class="item">
-        <label>Gist ID</label>
-        <input type="text" data-var="GIST_ID" placeholder="32位字符 ID" />
+        <label>Argo Token</label>
+        <input type="text" data-var="ARGO_AUTH" placeholder="固定隧道 Token">
+      </div>
+      <div class="item">
+        <label>Argo 固定域名</label>
+        <input type="text" data-var="ARGO_DOMAIN" placeholder="vls.abc.com">
+      </div>
+      <div class="item">
+        <label>Argo 优选 IP</label>
+        <input type="text" data-var="argo_ip" placeholder="cf.shun.com">
+      </div>
+      <div class="item">
+        <label>GitHub Gist ID</label>
+        <input type="text" data-var="GIST_ID" placeholder="32位 ID">
       </div>
       <div class="item">
         <label>GitHub Token</label>
-        <input type="text" data-var="GH_TOKEN" placeholder="ghp_xxxxxxxx" />
-      </div>
-      <div class="item">
-        <label>直连自定义地址 (direct_ip)</label>
-        <input type="text" data-var="direct_ip" placeholder="VPS 真实 IP" />
+        <input type="text" data-var="GH_TOKEN" placeholder="ghp_xxxx">
       </div>
     </div>
 
@@ -143,34 +174,48 @@
         <div style="width:10px;height:10px;border-radius:50%;background:#ffbd2e"></div>
         <div style="width:10px;height:10px;border-radius:50%;background:#27c93f"></div>
       </div>
-      <textarea id="output" rows="4" readonly></textarea>
+      <textarea id="output" rows="6" readonly></textarea>
     </div>
 
     <div class="btn-group">
-      <button class="btn btn-primary" id="copy">📋 复制一键安装指令</button>
-      <button class="btn btn-sub" onclick="location.reload()">🔄 重置</button>
+      <button class="btn btn-primary" id="copy">📋 复制一键执行命令</button>
+      <button class="btn btn-sub" onclick="location.reload()">🔄 重置表单</button>
     </div>
   </div>
 </div>
 
 <script>
   const output = document.getElementById('output');
-  
+  const mainCmd = document.getElementById('main_cmd');
+
   function update() {
     let vars = "";
-    // 抓取所有 input (text/number/select)
-    document.querySelectorAll('input[type="text"][data-var], input[type="number"][data-var], select[data-var]').forEach(el => {
-      if(el.value.trim()) vars += `${el.getAttribute('data-var')}="${el.value.trim()}" `;
-    });
-    // 抓取所有 checkbox (协议选项)
-    document.querySelectorAll('input[type="checkbox"][data-var]:checked').forEach(el => {
-      vars += `${el.getAttribute('data-var')}="yes" `;
+
+    // 1. 处理全局变量
+    document.querySelectorAll('[data-var]').forEach(el => {
+      const val = el.value.trim();
+      if(val) vars += `${el.getAttribute('data-var')}="${val}" `;
     });
 
-    const cmd = "bash argosbx.sh";
-    output.value = vars + cmd;
+    // 2. 处理协议及其专属端口 (一一对应逻辑)
+    document.querySelectorAll('[data-proto]').forEach(chk => {
+      if(chk.checked) {
+        const proto = chk.getAttribute('data-proto');
+        vars += `${proto}="yes" `;
+        
+        // 抓取对应的 In/Out 端口
+        const inPort = document.querySelector(`[data-port="${proto}_in"]`).value.trim();
+        const outPort = document.querySelector(`[data-port="${proto}_out"]`).value.trim();
+        
+        if(inPort) vars += `${proto}_in="${inPort}" `;
+        if(outPort) vars += `${proto}_out="${outPort}" `;
+      }
+    });
+
+    output.value = vars + mainCmd.value;
   }
 
+  // 绑定所有事件
   document.querySelectorAll('input, select').forEach(el => {
     el.addEventListener('input', update);
     el.addEventListener('change', update);
@@ -178,6 +223,7 @@
 
   update();
 
+  // 复制逻辑
   document.getElementById('copy').addEventListener('click', async () => {
     output.select();
     try {
