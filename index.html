@@ -42,8 +42,8 @@ font-family: system-ui, -apple-system, sans-serif;
 background: var(--body-bg);
 color: var(--ink);
 min-height: 100vh;
-transition: 0.3s;
 padding: 20px;
+transition: 0.3s;
 }
 .container {
 width: 100%;
@@ -56,7 +56,7 @@ box-shadow: 0 10px 40px rgba(0,0,0,0.3);
 overflow: hidden;
 }
 .header {
-padding: 20px;
+padding: 15px 25px;
 border-bottom: 1px solid var(--line);
 display: flex;
 justify-content: space-between;
@@ -64,8 +64,8 @@ align-items: center;
 flex-wrap: wrap;
 gap: 10px;
 }
-.header h1 { margin:0; font-size:1.1rem; color:var(--acc); }
-.header-info { font-size: 0.8rem; color: var(--sub); }
+.header h1 { margin: 0; font-size: 1.1rem; color: var(--acc); }
+.header-info { font-size: 0.75rem; color: var(--sub); }
 .header-info a { color: var(--acc); text-decoration: none; }
 .header-info a:hover { text-decoration: underline; }
 .tabs {
@@ -75,11 +75,11 @@ border-bottom: 1px solid var(--line);
 flex-wrap: wrap;
 }
 .tab {
-padding: 12px 20px;
+padding: 12px 25px;
 cursor: pointer;
 color: var(--sub);
-font-size: 0.85rem;
 font-weight: bold;
+font-size: 0.9rem;
 border-right: 1px solid var(--line);
 transition: 0.2s;
 }
@@ -89,70 +89,83 @@ color: var(--acc);
 background: rgba(79, 124, 255, 0.1);
 border-bottom: 2px solid var(--acc);
 }
-.tab-content { display: none; padding: 25px; }
-.tab-content.active { display: block; }
+.content-page { display: none; padding: 25px; }
+.content-page.active { display: block; }
+.two-cols {
+display: grid;
+grid-template-columns: 1.3fr 1fr;
+gap: 30px;
+}
+@media (max-width: 800px) {
+.two-cols { grid-template-columns: 1fr; }
+}
 .section-title {
 font-size: 0.8rem;
 font-weight: bold;
 color: var(--acc);
 text-transform: uppercase;
-margin: 20px 0 12px 0;
+margin: 15px 0 12px 0;
 display: flex;
 align-items: center;
 gap: 10px;
 }
 .section-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .section-title:first-child { margin-top: 0; }
-.protocol-grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-gap: 12px;
-margin-bottom: 15px;
+.proto-group {
+margin-bottom: 20px;
+padding: 12px;
+background: rgba(0,0,0,0.15);
+border-radius: 8px;
+border: 1px solid var(--line);
 }
-.protocol-row {
+.proto-group-title {
+font-size: 0.75rem;
+color: var(--sub);
+font-weight: bold;
+margin-bottom: 10px;
+padding-bottom: 8px;
+border-bottom: 1px dashed var(--line);
+}
+.proto-item {
 display: grid;
-grid-template-columns: 36px 100px 1fr 1fr;
+grid-template-columns: 28px 110px 1fr 1fr;
 gap: 8px;
 align-items: center;
-padding: 8px 10px;
-border-radius: 8px;
-background: rgba(255,255,255,0.02);
-border: 1px solid var(--line);
+margin-bottom: 6px;
+padding: 6px 8px;
+border-radius: 6px;
 transition: 0.2s;
 }
-.protocol-row:hover { background: rgba(255,255,255,0.04); }
-.protocol-header {
+.proto-item:hover { background: rgba(255,255,255,0.03); }
+.proto-head {
 font-size: 0.7rem;
 color: var(--sub);
 font-weight: bold;
-padding: 8px 10px;
-margin-bottom: 5px;
+margin-bottom: 8px;
+padding: 6px 8px;
 background: rgba(0,0,0,0.2);
-border-radius: 6px;
+border-radius: 4px;
 }
-.protocol-row input[type="checkbox"] {
-width: 18px;
-height: 18px;
+.proto-item input[type="checkbox"] {
+width: 16px;
+height: 16px;
 cursor: pointer;
 accent-color: var(--acc);
 }
-.protocol-row label {
+.proto-item span {
 font-size: 0.8rem;
 color: var(--ink);
-cursor: pointer;
-display: flex;
-align-items: center;
-gap: 6px;
 }
-.protocol-row .pill {
+.proto-item .pill {
 font-size: 0.65rem;
 padding: 2px 6px;
 border-radius: 4px;
 background: var(--line);
 color: var(--sub);
+margin-left: 4px;
 }
-.protocol-row input[type="text"],
-.protocol-row input[type="number"] {
+.proto-item input[type="text"],
+.proto-item input[type="number"] {
 padding: 6px 10px;
 border-radius: 6px;
 border: 1px solid var(--line);
@@ -162,17 +175,41 @@ font-size: 0.8rem;
 outline: none;
 width: 100%;
 }
-.protocol-row input:focus { border-color: var(--acc); }
-.config-grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-gap: 15px;
+.proto-item input:focus { border-color: var(--acc); }
+.proto-item input:disabled {
+opacity: 0.4;
+cursor: not-allowed;
+background: rgba(0,0,0,0.2);
 }
-.config-item { display: flex; flex-direction: column; gap: 6px; }
-.config-item label { font-size: 0.75rem; color: var(--sub); display: flex; align-items: center; gap: 6px; }
-.config-item .pill { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: var(--line); }
-.config-item input,
-.config-item select {
+.form-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 12px;
+}
+@media (max-width: 600px) {
+.form-grid { grid-template-columns: 1fr; }
+}
+.input-group {
+display: flex;
+flex-direction: column;
+gap: 5px;
+margin-bottom: 12px;
+}
+.input-group label {
+font-size: 0.75rem;
+color: var(--sub);
+display: flex;
+align-items: center;
+gap: 6px;
+}
+.input-group .pill {
+font-size: 0.65rem;
+padding: 2px 6px;
+border-radius: 4px;
+background: var(--line);
+}
+.input-group input,
+.input-group select {
 padding: 10px 12px;
 border-radius: 8px;
 border: 1px solid var(--line);
@@ -181,10 +218,10 @@ color: var(--ink);
 font-size: 0.85rem;
 outline: none;
 }
-.config-item input:focus,
-.config-item select:focus { border-color: var(--acc); }
-.config-item input:disabled,
-.config-item select:disabled { opacity: 0.5; cursor: not-allowed; }
+.input-group input:focus,
+.input-group select:focus { border-color: var(--acc); }
+.input-group input:disabled,
+.input-group select:disabled { opacity: 0.5; cursor: not-allowed; }
 .input-with-btn { display: flex; gap: 8px; }
 .input-with-btn input { flex: 1; }
 .input-with-btn button {
@@ -196,8 +233,36 @@ color: white;
 font-size: 0.8rem;
 cursor: pointer;
 font-weight: bold;
+transition: 0.2s;
 }
 .input-with-btn button:hover { opacity: 0.9; }
+.cmd-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+gap: 10px;
+}
+.cmd-btn {
+padding: 12px 14px;
+background: var(--button-bg-dark);
+border: 1px solid var(--line);
+color: var(--ink);
+border-radius: 8px;
+cursor: pointer;
+font-size: 0.85rem;
+text-align: left;
+transition: 0.2s;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.cmd-btn:hover {
+border-color: var(--acc);
+background: rgba(79, 124, 255, 0.1);
+}
+.cmd-btn .cmd-icon { font-size: 1.1rem; }
+.terminal-wrapper {
+padding: 0 25px 25px 25px;
+}
 .terminal {
 margin-top: 20px;
 background: #0a0e1a;
@@ -207,22 +272,29 @@ padding: 15px;
 }
 .terminal-header {
 display: flex;
-gap: 6px;
+align-items: center;
+gap: 8px;
 margin-bottom: 12px;
 padding-bottom: 10px;
 border-bottom: 1px solid var(--line);
 }
 .terminal-dot {
-width: 12px;
-height: 12px;
+width: 10px;
+height: 10px;
 border-radius: 50%;
 }
 .terminal-dot.red { background: #ff5f56; }
 .terminal-dot.yellow { background: #ffbd2e; }
 .terminal-dot.green { background: #27c93f; }
+.terminal-title {
+font-size: 0.7rem;
+color: #555;
+margin-left: 10px;
+font-family: sans-serif;
+}
 textarea {
 width: 100%;
-min-height: 100px;
+min-height: 80px;
 background: transparent;
 border: none;
 color: #4ade80;
@@ -231,7 +303,7 @@ font-size: 0.85rem;
 resize: vertical;
 outline: none;
 line-height: 1.6;
-white-space: pre;
+word-break: break-all;
 }
 .btn-group {
 display: flex;
@@ -241,7 +313,7 @@ flex-wrap: wrap;
 }
 .btn {
 flex: 1;
-min-width: 150px;
+min-width: 180px;
 padding: 12px;
 border-radius: 8px;
 border: none;
@@ -258,24 +330,6 @@ color: var(--sub);
 border: 1px solid var(--line);
 }
 .btn-secondary:hover { background: var(--line); }
-.shortcut-grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-gap: 10px;
-margin-top: 15px;
-}
-.shortcut-btn {
-padding: 10px 12px;
-border-radius: 8px;
-border: 1px solid var(--line);
-background: var(--button-bg-dark);
-color: var(--ink);
-font-size: 0.8rem;
-cursor: pointer;
-text-align: center;
-transition: 0.2s;
-}
-.shortcut-btn:hover { background: var(--line); }
 .client-links {
 margin-top: 15px;
 padding: 12px;
@@ -283,6 +337,7 @@ background: rgba(0,0,0,0.2);
 border-radius: 8px;
 font-size: 0.75rem;
 line-height: 1.8;
+color: var(--sub);
 }
 .client-links a { color: var(--acc); text-decoration: none; }
 .client-links a:hover { text-decoration: underline; }
@@ -297,8 +352,8 @@ top: 20px;
 left: 50%;
 transform: translateX(-50%);
 z-index: 1000;
-transition: 0.3s;
 opacity: 0;
+transition: 0.3s;
 font-weight: bold;
 }
 #toast.show { visibility: visible; opacity: 1; top: 30px; }
@@ -319,20 +374,10 @@ cursor: pointer;
 font-size: 0.85rem;
 }
 .command-type input[type="radio"] { accent-color: var(--acc); }
-.group-title {
-font-size: 0.85rem;
-color: var(--sub);
-padding: 8px 12px;
-margin: 15px -10px 5px;
-background: rgba(79, 124, 255, 0.1);
-border-radius: 6px;
-font-weight: bold;
-}
-.group-title:first-child { margin-top: 0; }
 </style>
 </head>
 <body>
-<div id="toast">已复制到剪贴板</div>
+<div id="toast">指令已复制到剪贴板</div>
 <div class="container">
 <div class="header">
 <div>
@@ -341,118 +386,127 @@ font-weight: bold;
 Github项目：<a href="https://github.com/zv201413/argosbx-new" target="_blank">github.com/zv201413/argosbx-new</a>
 </div>
 </div>
-<button onclick="document.body.classList.toggle('light-mode')" class="btn-secondary" style="padding:8px 16px;">🌓 主题</button>
+<button onclick="document.body.classList.toggle('light-mode')" class="btn-secondary" style="flex:none; padding:6px 14px; font-size:0.75rem;">🌓 切换主题</button>
 </div>
 
 <div class="tabs">
-<div class="tab active" data-tab="install">📦 安装部署</div>
-<div class="tab" data-tab="advanced">⚙️ 高级设置</div>
-<div class="tab" data-tab="commands">🔧 快捷命令</div>
+<div class="tab active" data-target="page-install">📦 安装部署</div>
+<div class="tab" data-target="page-advanced">⚙️ 高级设置</div>
+<div class="tab" data-target="page-cmds">🔧 快捷命令</div>
 </div>
 
-<div class="tab-content active" id="tab-install">
-<div class="section-title">内核协议端口配置 (勾选启用)</div>
+<div id="page-install" class="content-page active">
+<div class="two-cols">
+<div class="col-left">
+<div class="section-title">内核协议与端口一一对应 (勾选启用)</div>
 
-<div class="group-title">🔵 Xray 专属协议</div>
-<div class="protocol-grid">
-<div class="protocol-row">
+<div class="proto-group">
+<div class="proto-group-title">🔵 Xray 专属协议</div>
+<div class="proto-item proto-head">
+<span>选</span><span>协议名称</span><span>内部端口 (In)</span><span>外部端口 (Out)</span>
+</div>
+<div class="proto-item">
 <input type="checkbox" data-proto="vlpt" id="chk-vlpt">
-<label for="chk-vlpt">Vless-Reality-Vision<span class="pill">vlpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="vlpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="vlpt">
+<span><label for="chk-vlpt">Vless-Reality-Vision<span class="pill">vlpt</span></label></span>
+<input type="text" data-port="vlpt" placeholder="随机">
+<input type="text" data-extport="vlpt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="xhpt" id="chk-xhpt">
-<label for="chk-xhpt">Vless-XHTTP-Reality<span class="pill">xhpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="xhpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="xhpt">
+<span><label for="chk-xhpt">Vless-XHTTP-Reality<span class="pill">xhpt</span></label></span>
+<input type="text" data-port="xhpt" placeholder="随机">
+<input type="text" data-extport="xhpt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="vxpt" id="chk-vxpt">
-<label for="chk-vxpt">Vless-XHTTP<span class="pill">vxpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="vxpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="vxpt">
+<span><label for="chk-vxpt">Vless-XHTTP<span class="pill">vxpt</span></label></span>
+<input type="text" data-port="vxpt" placeholder="随机">
+<input type="text" data-extport="vxpt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="vwpt" id="chk-vwpt">
-<label for="chk-vwpt">Vless-WS<span class="pill">vwpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="vwpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="vwpt">
+<span><label for="chk-vwpt">Vless-WS<span class="pill">vwpt</span></label></span>
+<input type="text" data-port="vwpt" placeholder="随机">
+<input type="text" data-extport="vwpt" placeholder="同内部">
 </div>
 </div>
 
-<div class="group-title">🟢 Sing-box 专属协议</div>
-<div class="protocol-grid">
-<div class="protocol-row">
+<div class="proto-group">
+<div class="proto-group-title">🟢 Sing-box 专属协议</div>
+<div class="proto-item proto-head">
+<span>选</span><span>协议名称</span><span>内部端口 (In)</span><span>外部端口 (Out)</span>
+</div>
+<div class="proto-item">
 <input type="checkbox" data-proto="hypt" id="chk-hypt">
-<label for="chk-hypt">Hysteria2<span class="pill">hypt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="hypt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="hypt">
+<span><label for="chk-hypt">Hysteria2<span class="pill">hypt</span></label></span>
+<input type="text" data-port="hypt" placeholder="随机">
+<input type="text" data-extport="hypt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="tupt" id="chk-tupt">
-<label for="chk-tupt">TUIC V5<span class="pill">tupt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="tupt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="tupt">
+<span><label for="chk-tupt">TUIC V5<span class="pill">tupt</span></label></span>
+<input type="text" data-port="tupt" placeholder="随机">
+<input type="text" data-extport="tupt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="anpt" id="chk-anpt">
-<label for="chk-anpt">AnyTLS<span class="pill">anpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="anpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="anpt">
+<span><label for="chk-anpt">AnyTLS<span class="pill">anpt</span></label></span>
+<input type="text" data-port="anpt" placeholder="随机">
+<input type="text" data-extport="anpt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="arpt" id="chk-arpt">
-<label for="chk-arpt">Any-Reality<span class="pill">arpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="arpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="arpt">
+<span><label for="chk-arpt">Any-Reality<span class="pill">arpt</span></label></span>
+<input type="text" data-port="arpt" placeholder="随机">
+<input type="text" data-extport="arpt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="sspt" id="chk-sspt">
-<label for="chk-sspt">Shadowsocks-2022<span class="pill">sspt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="sspt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="sspt">
+<span><label for="chk-sspt">Shadowsocks-2022<span class="pill">sspt</span></label></span>
+<input type="text" data-port="sspt" placeholder="随机">
+<input type="text" data-extport="sspt" placeholder="同内部">
 </div>
 </div>
 
-<div class="group-title">🔄 自动分配协议 (根据内核需求)</div>
-<div class="protocol-grid">
-<div class="protocol-row">
+<div class="proto-group">
+<div class="proto-group-title">🔄 自动分配协议 (根据内核需求)</div>
+<div class="proto-item">
 <input type="checkbox" data-proto="vmpt" id="chk-vmpt">
-<label for="chk-vmpt">Vmess-WS<span class="pill">vmpt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="vmpt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="vmpt">
+<span><label for="chk-vmpt">Vmess-WS<span class="pill">vmpt</span></label></span>
+<input type="text" data-port="vmpt" placeholder="随机">
+<input type="text" data-extport="vmpt" placeholder="同内部">
 </div>
-<div class="protocol-row">
+<div class="proto-item">
 <input type="checkbox" data-proto="sopt" id="chk-sopt">
-<label for="chk-sopt">Socks5<span class="pill">sopt</span></label>
-<input type="text" placeholder="内部端口(随机)" data-port="sopt">
-<input type="text" placeholder="外部端口(同内部)" data-extport="sopt">
+<span><label for="chk-sopt">Socks5<span class="pill">sopt</span></label></span>
+<input type="text" data-port="sopt" placeholder="随机">
+<input type="text" data-extport="sopt" placeholder="同内部">
+</div>
 </div>
 </div>
 
-<div class="section-title">基础全局参数</div>
-<div class="config-grid">
-<div class="config-item">
+<div class="col-right">
+<div class="section-title">全局基础参数</div>
+<div class="input-group">
 <label>UUID 密码 <span class="pill">uuid</span></label>
 <div class="input-with-btn">
 <input type="text" id="uuid" placeholder="留空则随机生成">
 <button onclick="document.getElementById('uuid').value=crypto.randomUUID();render();">生成</button>
 </div>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>Reality 域名 <span class="pill">reym</span></label>
 <input type="text" id="reym" placeholder="留空则默认 apple.com">
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>节点名称前缀 <span class="pill">name</span></label>
 <input type="text" id="name" placeholder="如: US、JP、SG">
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>CF解析域名 <span class="pill">cdnym</span></label>
 <input type="text" id="cdnym" placeholder="CDN/回源域名" disabled>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>IPv4/IPv6 导出 <span class="pill">ippz</span></label>
 <select id="ippz">
 <option value="">自动选择</option>
@@ -460,18 +514,16 @@ Github项目：<a href="https://github.com/zv201413/argosbx-new" target="_blank"
 <option value="6">仅导出 IPv6</option>
 </select>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>开放所有端口 <span class="pill">oap</span></label>
 <select id="oap">
 <option value="">默认关闭</option>
 <option value="y">开启 (执行一次即可)</option>
 </select>
 </div>
-</div>
 
 <div class="section-title">Argo 隧道配置</div>
-<div class="config-grid">
-<div class="config-item">
+<div class="input-group">
 <label>启用 Argo 隧道 <span class="pill">argo</span></label>
 <select id="argoSelect">
 <option value="">关闭</option>
@@ -479,58 +531,30 @@ Github项目：<a href="https://github.com/zv201413/argosbx-new" target="_blank"
 <option value="vmpt">Vmess-WS 隧道</option>
 </select>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>固定隧道域名 <span class="pill">agn</span></label>
 <input type="text" id="agn" placeholder="留空则临时隧道" disabled>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>固定隧道Token <span class="pill">agk</span></label>
 <input type="text" id="agk" placeholder="留空则临时隧道" disabled>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>Argo 优选IP <span class="pill">argoip</span></label>
 <input type="text" id="argoip" placeholder="默认 yg数字.ygkkk.dpdns.org">
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>直连节点地址 <span class="pill">nodeaddr</span></label>
 <input type="text" id="nodeaddr" placeholder="Hy2/TUIC节点地址">
 </div>
 </div>
-
-<div class="terminal">
-<div class="terminal-header">
-<div class="terminal-dot red"></div>
-<div class="terminal-dot yellow"></div>
-<div class="terminal-dot green"></div>
-</div>
-<textarea id="output" rows="5" readonly></textarea>
-</div>
-
-<div class="command-type">
-<span style="font-size:0.85rem;color:var(--sub);">命令类型：</span>
-<label><input type="radio" name="commandType" value="curl" checked> curl</label>
-<label><input type="radio" name="commandType" value="wget"> wget</label>
-</div>
-
-<div class="btn-group">
-<button class="btn btn-primary" id="copy">📋 复制一键执行命令</button>
-<button class="btn btn-secondary" onclick="location.reload()">🔄 重置表单</button>
-</div>
-
-<div class="client-links">
-📱 <b>客户端推荐：</b>
-安卓：<a href="https://github.com/starifly/NekoBoxForAndroid/releases" target="_blank">Nekobox</a>、
-<a href="https://github.com/2dust/v2rayNG/releases" target="_blank">V2rayNG</a> |
-Windows：<a href="https://github.com/2dust/v2rayN/releases" target="_blank">V2rayN</a> |
-iOS：<a href="https://apps.apple.com/app/shadowrocket/id932747118" target="_blank">Shadowrocket</a>、
-<a href="https://www.nsloon.app/" target="_blank">Loon</a>
 </div>
 </div>
 
-<div class="tab-content" id="tab-advanced">
+<div id="page-advanced" class="content-page">
 <div class="section-title">WARP 出站配置</div>
-<div class="config-grid">
-<div class="config-item">
+<div class="form-grid">
+<div class="input-group">
 <label>套 WARP-IP 出站 <span class="pill">warp</span></label>
 <select id="warp">
 <option value="">默认：服务器本地IP出站</option>
@@ -545,7 +569,7 @@ iOS：<a href="https://apps.apple.com/app/shadowrocket/id932747118" target="_bla
 <option value="s6x6">双内核同时套WARP v6</option>
 </select>
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>优先 IP 版本 <span class="pill">ippref</span></label>
 <select id="ippref">
 <option value="">auto (默认)</option>
@@ -555,32 +579,71 @@ iOS：<a href="https://apps.apple.com/app/shadowrocket/id932747118" target="_bla
 </div>
 </div>
 
-<div class="section-title">GitHub Gist 备份</div>
-<div class="config-grid">
-<div class="config-item">
+<div class="section-title">GitHub Gist 备份同步</div>
+<div class="form-grid">
+<div class="input-group">
 <label>GitHub Token <span class="pill">gh_token</span></label>
 <input type="text" id="gh_token" placeholder="ghp_xxxx (推送Gist用)">
 </div>
-<div class="config-item">
+<div class="input-group">
 <label>Gist ID <span class="pill">gh_gist_id</span></label>
 <input type="text" id="gh_gist_id" placeholder="已有Gist ID可填，留空则新建">
 </div>
 </div>
+
+<div style="margin-top:20px; padding:12px; background:rgba(0,0,0,0.2); border-radius:8px; font-size:0.8rem; color:var(--sub);">
+💡 <b>提示：</b>高级设置的参数会与安装页面的协议配置合并，在底部终端预览区显示完整的一键执行命令。
+</div>
 </div>
 
-<div class="tab-content" id="tab-commands">
+<div id="page-cmds" class="content-page">
 <div class="section-title">快捷管理命令 (已安装后使用)</div>
-<div class="shortcut-grid">
-<button class="shortcut-btn" data-command="list">📋 节点显示：list</button>
-<button class="shortcut-btn" data-command="del">🗑️ 卸载脚本：del</button>
-<button class="shortcut-btn" data-command="upx">⬆️ 升级Xray：upx</button>
-<button class="shortcut-btn" data-command="ups">⬆️ 升级Sing-box：ups</button>
-<button class="shortcut-btn" data-command="res">🔄 重启脚本：res</button>
-<button class="shortcut-btn" data-command="rep">🔧 更新变量：rep</button>
-</div>
-<p style="margin-top:15px;font-size:0.8rem;color:var(--sub);">
-💡 提示：点击上方命令按钮，将自动在下方生成对应的SSH执行命令。
+<p style="font-size:0.8rem; color:var(--sub); margin-bottom:15px;">
+点击下方命令按钮，将自动带上当前已填写的所有变量参数。
 </p>
+<div class="cmd-grid">
+<div class="cmd-btn" data-action="list"><span class="cmd-icon">📋</span>节点显示：list</div>
+<div class="cmd-btn" data-action="del"><span class="cmd-icon">🗑️</span>卸载脚本：del</div>
+<div class="cmd-btn" data-action="upx"><span class="cmd-icon">⬆️</span>升级Xray：upx</div>
+<div class="cmd-btn" data-action="ups"><span class="cmd-icon">⬆️</span>升级Sing-box：ups</div>
+<div class="cmd-btn" data-action="res"><span class="cmd-icon">🔄</span>重启脚本：res</div>
+<div class="cmd-btn" data-action="rep"><span class="cmd-icon">🔧</span>更新变量：rep</div>
+</div>
+<div style="margin-top:20px; padding:12px; background:rgba(0,0,0,0.2); border-radius:8px; font-size:0.75rem; color:var(--warn);">
+⚠️ 注意：点击快捷命令后，请滚动到页面底部查看生成的完整指令。
+</div>
+</div>
+
+<div class="terminal-wrapper">
+<div class="command-type">
+<span style="font-size:0.8rem; color:var(--sub);">命令类型：</span>
+<label><input type="radio" name="commandType" value="curl" checked> curl</label>
+<label><input type="radio" name="commandType" value="wget"> wget</label>
+</div>
+
+<div class="terminal">
+<div class="terminal-header">
+<div class="terminal-dot red"></div>
+<div class="terminal-dot yellow"></div>
+<div class="terminal-dot green"></div>
+<span class="terminal-title">COMMAND PREVIEW - SSH一键执行</span>
+</div>
+<textarea id="output" rows="4" readonly></textarea>
+</div>
+
+<div class="btn-group">
+<button class="btn btn-primary" id="copy">📋 复制一键执行命令</button>
+<button class="btn btn-secondary" onclick="location.reload()">🔄 重置所有参数</button>
+</div>
+
+<div class="client-links">
+📱 <b>客户端推荐：</b>
+安卓：<a href="https://github.com/starifly/NekoBoxForAndroid/releases" target="_blank">Nekobox</a>、
+<a href="https://github.com/2dust/v2rayNG/releases" target="_blank">V2rayNG</a> |
+Windows：<a href="https://github.com/2dust/v2rayN/releases" target="_blank">V2rayN</a> |
+iOS：<a href="https://apps.apple.com/app/shadowrocket/id932747118" target="_blank">Shadowrocket</a>、
+<a href="https://www.nsloon.app/" target="_blank">Loon</a>
+</div>
 </div>
 </div>
 
@@ -600,12 +663,14 @@ const vlessWsCheckbox = document.querySelector('[data-proto="vwpt"]');
 const vlessXhttpCheckbox = document.querySelector('[data-proto="vxpt"]');
 const cdnymInput = document.getElementById('cdnym');
 
+let currentAction = '';
+
 document.querySelectorAll('.tab').forEach(tab => {
 tab.addEventListener('click', () => {
 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+document.querySelectorAll('.content-page').forEach(c => c.classList.remove('active'));
 tab.classList.add('active');
-document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+document.getElementById(tab.getAttribute('data-target')).classList.add('active');
 });
 });
 
@@ -643,7 +708,7 @@ updateCdnymState();
 document.querySelectorAll('[data-port]').forEach(inp => {
 inp.addEventListener('input', () => {
 const key = inp.getAttribute('data-port');
-const ck = document.querySelector(`[data-proto="${key}"]`);
+const ck = document.querySelector('[data-proto="' + key + '"]');
 if (ck && inp.value.trim() && !ck.checked) ck.checked = true;
 if (['vmpt','vwpt','vxpt'].includes(key)) updateCdnymState();
 render();
@@ -653,7 +718,7 @@ render();
 document.querySelectorAll('[data-extport]').forEach(inp => {
 inp.addEventListener('input', () => {
 const key = inp.getAttribute('data-extport');
-const ck = document.querySelector(`[data-proto="${key}"]`);
+const ck = document.querySelector('[data-proto="' + key + '"]');
 if (ck && inp.value.trim() && !ck.checked) ck.checked = true;
 render();
 });
@@ -663,8 +728,8 @@ document.querySelectorAll('[data-proto]').forEach(ck => {
 ck.addEventListener('change', () => {
 if (!ck.checked) {
 const key = ck.getAttribute('data-proto');
-const pt = document.querySelector(`[data-port="${key}"]`);
-const extpt = document.querySelector(`[data-extport="${key}"]`);
+const pt = document.querySelector('[data-port="' + key + '"]');
+const extpt = document.querySelector('[data-extport="' + key + '"]');
 if (pt) pt.value = '';
 if (extpt) extpt.value = '';
 }
@@ -676,9 +741,9 @@ render();
 function collectVars() {
 const m = {};
 protoKeys.forEach(k => {
-const ck = document.querySelector(`[data-proto="${k}"]`);
-const pt = document.querySelector(`[data-port="${k}"]`);
-const extpt = document.querySelector(`[data-extport="${k}"]`);
+const ck = document.querySelector('[data-proto="' + k + '"]');
+const pt = document.querySelector('[data-port="' + k + '"]');
+const extpt = document.querySelector('[data-extport="' + k + '"]');
 if (ck && ck.checked) {
 m[k] = (pt && pt.value.trim()) || '';
 m[k + '_ext'] = (extpt && extpt.value.trim()) || '';
@@ -712,9 +777,9 @@ keys.forEach(k => { if (!ordered.includes(k)) ordered.push(k); });
 
 return ordered.map(k => {
 const val = m[k];
-if (val === '') return `${k}=""`;
-if (/[^\\w\\-\\.:/]/.test(val)) return `${k}="${val.replace(/"/g, '\\"')}"`;
-return `${k}="${val}"`;
+if (val === '') return k + '=""';
+if (/[^\\w\\-\\.:/]/.test(val)) return k + '="' + val.replace(/"/g, '\\"') + '"';
+return k + '="' + val + '"';
 }).join(' ');
 }
 
@@ -722,26 +787,20 @@ function render() {
 const m = collectVars();
 const vars = toBashVars(m);
 const cmd = document.querySelector('input[name="commandType"]:checked').value === 'curl' ? CURL : WGET;
-output.value = (vars ? vars + ' ' : '') + cmd;
+output.value = (vars ? vars + ' ' : '') + cmd + (currentAction ? ' ' + currentAction : '');
 }
+
+document.querySelectorAll('.cmd-btn').forEach(btn => {
+btn.addEventListener('click', () => {
+currentAction = btn.getAttribute('data-action');
+render();
+document.querySelector('.terminal').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+});
 
 document.querySelectorAll('input, select').forEach(el => {
 el.addEventListener('input', render);
 el.addEventListener('change', render);
-});
-
-document.querySelectorAll('.shortcut-btn').forEach(btn => {
-btn.addEventListener('click', () => {
-const cmd = btn.getAttribute('data-command');
-const baseCmd = document.querySelector('input[name="commandType"]:checked').value === 'curl' ? CURL : WGET;
-if (cmd === 'rep') {
-const m = collectVars();
-const vars = toBashVars(m);
-output.value = (vars ? vars + ' ' : '') + baseCmd + ' rep';
-} else {
-output.value = baseCmd + ' ' + cmd;
-}
-});
 });
 
 document.getElementById('copy').addEventListener('click', async () => {
