@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>甬哥-ArgoSBX小钢炮💣重构版 (状态驱动架构)</title>
+  <style>
+    :root {
+      --bg:#0b1020;
+      --card:#121831;
+      --ink:#e9edf7;
+      --sub:#b7c1d9;
+      --line:#263255;
+      --acc:#4f7cff;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --err:#ef4444;
+      --input-bg:#0d1430;
+      --button-bg-dark:#1a2346;
+      --button-bg-light:#121a39;
+      --body-bg: linear-gradient(180deg, var(--bg) 0%, #0e1530 100%);
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--body-bg);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      width: 100%;
+      max-width: 600px;
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      padding: 30px;
+      border: 1px solid var(--line);
+    }
+    h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 24px;
+      color: var(--acc);
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+      color: var(--sub);
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--input-bg);
+      color: var(--ink);
+      font-size: 1rem;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, select:focus {
+      outline: none;
+      border-color: var(--acc);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .output-area {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px dashed var(--line);
+    }
+    textarea {
+      width: 100%;
+      height: 100px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--acc);
+      background: rgba(79, 124, 255, 0.1);
+      color: var(--ink);
+      font-family: monospace;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+      resize: none;
+      margin-bottom: 16px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+    }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-primary { background: var(--acc); color: white; }
+    .btn-secondary { background: var(--button-bg-dark); color: var(--ink); border: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>💣 ArgoSBX 部署指令生成器</h1>
+
+  <div class="form-group">
+    <label>节点名称前缀 (Node Prefix)</label>
+    <input type="text" id="np" placeholder="例如: 甬哥US" />
+  </div>
+
+  <div class="grid-2">
+    <div class="form-group">
+      <label>Argo 优选IP/域名</label>
+      <input type="text" id="argo_ip" placeholder="默认: 自动获取" />
+    </div>
+    <div class="form-group">
+      <label>直连节点自定义地址</label>
+      <input type="text" id="direct_ip" placeholder="默认: 自动获取 VPS IP" />
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="form-group">
+      <label>内部监听端口 (Internal Port)</label>
+      <input type="number" id="in_port" placeholder="为空则随机分配" />
+    </div>
+    <div class="form-group">
+      <label>外部映射端口 (External Port)</label>
+      <input type="number" id="out_port" placeholder="例如: 443" />
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>优先 IPv4/IPv6 出站策略</label>
+    <select id="ip_pref">
+      <option value="">默认 (自动路由)</option>
+      <option value="4">强制优先 IPv4</option>
+      <option value="6">强制优先 IPv6</option>
+    </select>
+  </div>
+  
+  <div class="form-group">
+    <label>Argo Token (留空则使用临时域名 Quick Tunnel)</label>
+    <input type="text" id="argo_token" placeholder="eyJhIjoi..." />
+  </div>
+
+  <div class="output-area">
+    <label>生成的安装指令：</label>
+    <textarea id="output" readonly></textarea>
+    
+    <div class="btn-group">
+      <button class="btn-primary" id="btn-generate">生成并复制指令</button>
+      <button class="btn-secondary" id="btn-reset">重置</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function generateCommand() {
+    const vars = [];
+    
+    // 获取用户输入并构建环境变量参数
+    const np = document.getElementById('np').value.trim();
+    if (np) vars.push(`np="${np}"`);
+
+    const argo_ip = document.getElementById('argo_ip').value.trim();
+    if (argo_ip) vars.push(`argo_ip="${argo_ip}"`);
+
+    const direct_ip = document.getElementById('direct_ip').value.trim();
+    if (direct_ip) vars.push(`direct_ip="${direct_ip}"`);
+
+    const in_port = document.getElementById('in_port').value.trim();
+    if (in_port) vars.push(`in_port="${in_port}"`);
+
+    const out_port = document.getElementById('out_port').value.trim();
+    if (out_port) vars.push(`out_port="${out_port}"`);
+
+    const ip_pref = document.getElementById('ip_pref').value;
+    if (ip_pref) vars.push(`ip_pref="${ip_pref}"`);
+
+    const argo_token = document.getElementById('argo_token').value.trim();
+    if (argo_token) vars.push(`ARGO_AUTH="${argo_token}"`);
+
+    // 核心安装命令 (这里假设脚本文件名为 argosbx.sh 或远程 raw 地址)
+    const baseCommand = "bash argosbx.sh"; 
+    // 如果你使用的是远程脚本，可以替换为： "bash <(curl -Ls https://raw.github.../argosbx.sh)"
+
+    // 拼接最终命令
+    const finalCmd = vars.length > 0 
+      ? vars.join(" ") + " " + baseCommand 
+      : baseCommand;
+
+    const outputBox = document.getElementById('output');
+    outputBox.value = finalCmd;
+
+    // 执行复制
+    outputBox.select();
+    outputBox.setSelectionRange(0, 99999);
+    try {
+      navigator.clipboard.writeText(finalCmd);
+      alert("✅ 复制成功！请粘贴到 SSH 终端执行。");
+    } catch (err) {
+      alert("复制失败，请手动选择文本框内容复制。");
+    }
+  }
+
+  document.getElementById('btn-generate').addEventListener('click', generateCommand);
+  
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    document.querySelectorAll('input, select').forEach(el => el.value = '');
+    document.getElementById('output').value = '';
+  });
+</script>
+
+</body>
+</html>
