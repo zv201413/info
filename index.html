@@ -6,225 +6,170 @@
   <title>甬哥-ArgoSBX小钢炮💣一键SSH V2026——zv修改版</title>
   <style>
     :root {
-      --bg:#0b1020;
-      --card:#121831;
-      --ink:#e9edf7;
-      --sub:#b7c1d9;
-      --line:#263255;
-      --acc:#4f7cff;
-      --ok:#22c55e;
-      --warn:#f59e0b;
-      --err:#ef4444;
-      --input-bg:#0d1430;
-      --button-bg-dark:#1a2346;
-      --button-bg-light:#121a39;
+      --bg:#0b1020; --card:#121831; --ink:#e9edf7; --sub:#b7c1d9; --line:#263255;
+      --acc:#4f7cff; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+      --input-bg:#0d1430; --button-bg-dark:#1a2346; --button-bg-light:#121a39;
       --body-bg: linear-gradient(180deg, var(--bg) 0%, #0e1530 100%);
     }
     .light-mode {
-      --bg:#ffffff;
-      --card:#ffffff;
-      --ink:#1a202c;
-      --sub:#4a5568;
-      --line:#e2e8f0;
-      --acc:#4f7cff;
-      --input-bg:#f7fafc;
-      --button-bg-dark:#edf2f7;
-      --button-bg-light:#e2e8f0;
+      --bg:#ffffff; --card:#ffffff; --ink:#1a202c; --sub:#4a5568; --line:#e2e8f0;
+      --acc:#4f7cff; --input-bg:#f7fafc; --button-bg-dark:#edf2f7; --button-bg-light:#e2e8f0;
       --body-bg: #f7fafc;
     }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--body-bg);
-      color: var(--ink);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
-      transition: all 0.3s ease;
-    }
-    .header-bar {
-      width: 100%;
-      max-width: 650px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .theme-toggle {
-      background: var(--button-bg-dark);
-      color: var(--ink);
-      border: 1px solid var(--line);
-      padding: 8px 16px;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: all 0.2s;
-    }
-    .theme-toggle:hover { background: var(--button-bg-light); }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--body-bg); color: var(--ink); min-height: 100vh; transition: 0.3s; padding: 20px; box-sizing: border-box; }
+    .header { width:100%; max-width:800px; margin:0 auto 20px; display:flex; justify-content:space-between; align-items:center; }
+    .container { width: 100%; max-width: 800px; margin: 0 auto; background: var(--card); border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 8px 32px rgba(0,0,0,0.3); overflow: hidden; }
     
-    .container {
-      width: 100%;
-      max-width: 650px;
-      background: var(--card);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-      padding: 30px;
-      border: 1px solid var(--line);
-      transition: all 0.3s ease;
-      box-sizing: border-box;
-    }
-    h1 {
-      font-size: 1.4rem;
-      text-align: center;
-      margin-top: 0;
-      margin-bottom: 24px;
-      color: var(--acc);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-    @media (max-width: 500px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-    .form-group {
-      margin-bottom: 16px;
-    }
-    label {
-      display: block;
-      font-size: 0.9rem;
-      font-weight: 500;
-      margin-bottom: 8px;
-      color: var(--sub);
-    }
-    input[type="text"], input[type="number"], select {
-      width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-      background: var(--input-bg);
-      color: var(--ink);
-      font-size: 1rem;
-      box-sizing: border-box;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--acc);
-      box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.2);
-    }
-    .output-area {
-      margin-top: 24px;
-      padding-top: 24px;
-      border-top: 1px dashed var(--line);
-    }
-    textarea {
-      width: 100%;
-      height: 100px;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--acc);
-      background: rgba(79, 124, 255, 0.05);
-      color: var(--ink);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.9rem;
-      box-sizing: border-box;
-      resize: vertical;
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-    .btn-group {
-      display: flex;
-      gap: 12px;
-    }
-    button.action-btn {
-      flex: 1;
-      padding: 14px;
-      border: none;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.2s;
-    }
-    button.action-btn:active { transform: scale(0.98); }
-    .btn-primary { background: var(--acc); color: #fff; }
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-secondary { background: var(--button-bg-dark); color: var(--ink); border: 1px solid var(--line); }
-    .btn-secondary:hover { background: var(--button-bg-light); }
+    /* Tab Navigation */
+    .tabs { display: flex; background: var(--button-bg-dark); border-bottom: 1px solid var(--line); }
+    .tab { padding: 14px 24px; cursor: pointer; color: var(--sub); font-weight: bold; border-right: 1px solid var(--line); transition: 0.2s; }
+    .tab.active { background: var(--card); color: var(--acc); border-bottom: 2px solid var(--acc); }
+
+    .content { padding: 24px; }
+    .section-title { font-size: 0.9rem; color: var(--acc); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; display: flex; align-items: center; }
+    .section-title::after { content: ""; flex: 1; height: 1px; background: var(--line); margin-left: 15px; }
+
+    /* Grid Layout */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .form-group { display: flex; flex-direction: column; }
+    label { font-size: 0.85rem; color: var(--sub); margin-bottom: 6px; }
+    input, select { padding: 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--input-bg); color: var(--ink); outline: none; transition: 0.2s; }
+    input:focus { border-color: var(--acc); box-shadow: 0 0 0 2px rgba(79, 124, 255, 0.2); }
+
+    /* Output Terminal Style */
+    .output-wrapper { margin-top: 20px; background: #000; border-radius: 8px; padding: 15px; border: 1px solid var(--line); position: relative; }
+    .terminal-header { display: flex; gap: 6px; margin-bottom: 10px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
+    textarea { width: 100%; background: transparent; border: none; color: #00ff00; font-family: 'Consolas', monospace; font-size: 0.95rem; resize: none; outline: none; line-height: 1.4; }
+
+    .footer-btns { display: flex; gap: 12px; margin-top: 15px; }
+    .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-main { background: var(--acc); color: #white; }
+    .btn-sub { background: var(--button-bg-dark); color: var(--sub); border: 1px solid var(--line); }
+    .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+
+    /* Toast */
+    #toast { visibility: hidden; min-width: 200px; background-color: var(--ok); color: #fff; text-align: center; border-radius: 6px; padding: 12px; position: fixed; z-index: 100; left: 50%; top: 30px; transform: translateX(-50%); font-weight: bold; }
+    #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+    @keyframes fadein { from {top: 0; opacity: 0;} to {top: 30px; opacity: 1;} }
+    @keyframes fadeout { from {top: 30px; opacity: 1;} to {top: 0; opacity: 0;} }
   </style>
 </head>
-<body>
+<body class="dark-mode">
 
-<div class="header-bar">
-  <div style="color: var(--sub); font-weight: bold;">v2026.zv_refactored</div>
-  <button class="theme-toggle" id="theme-btn">🌓 切换主题</button>
+<div id="toast">已成功复制指令</div>
+
+<div class="header">
+  <div style="font-weight: bold; font-size: 1.1rem;">💣 ArgoSBX <span style="color:var(--acc)">PRO</span></div>
+  <button onclick="document.body.classList.toggle('light-mode')" class="btn" style="width:auto; padding:5px 15px; background:var(--button-bg-dark); color:var(--sub); border:1px solid var(--line)">🌓 切换主题</button>
 </div>
 
 <div class="container">
-  <h1>💣 ArgoSBX 部署指令生成器</h1>
-
-  <div class="form-group">
-    <label>节点名称前缀</label>
-    <input type="text" id="np" data-var="np" placeholder="例如: 甬哥US" />
+  <div class="tabs">
+    <div class="tab active">部署配置</div>
+    <div class="tab">高级管理</div>
+    <div class="tab">关于脚本</div>
   </div>
 
-  <div class="grid">
-    <div class="form-group">
-      <label>Argo 优选IP/域名</label>
-      <input type="text" id="argo_ip" data-var="argo_ip" placeholder="留空则使用默认 IP" />
+  <div class="content">
+    <div class="section-title">核心身份参数</div>
+    <div class="grid">
+      <div class="form-group">
+        <label>节点名称前缀 (np)</label>
+        <input type="text" id="np" data-var="np" placeholder="例如: 甬哥US-Modal" />
+      </div>
+      <div class="form-group">
+        <label>Argo Token (固定隧道模式)</label>
+        <input type="text" id="argo_token" data-var="ARGO_AUTH" placeholder="留空则使用临时域名" />
+      </div>
     </div>
-    <div class="form-group">
-      <label>直连节点自定义地址</label>
-      <input type="text" id="direct_ip" data-var="direct_ip" placeholder="留空则自动获取 VPS IP" />
-    </div>
-  </div>
 
-  <div class="grid">
-    <div class="form-group">
-      <label>内部监听端口</label>
-      <input type="number" id="in_port" data-var="in_port" placeholder="留空则系统随机生成" />
+    <div class="section-title">网络与端口映射</div>
+    <div class="grid">
+      <div class="form-group">
+        <label>Argo 优选域名/IP (argo_ip)</label>
+        <input type="text" id="argo_ip" data-var="argo_ip" placeholder="例如: cf.shun.com" />
+      </div>
+      <div class="form-group">
+        <label>直连节点自定义地址 (direct_ip)</label>
+        <input type="text" id="direct_ip" data-var="direct_ip" placeholder="留空则获取本地 IP" />
+      </div>
+      <div class="form-group">
+        <label>内部监听端口 (in_port)</label>
+        <input type="number" id="in_port" data-var="in_port" placeholder="为空则随机" />
+      </div>
+      <div class="form-group">
+        <label>外部映射端口 (out_port)</label>
+        <input type="number" id="out_port" data-var="out_port" placeholder="例如: 443" />
+      </div>
     </div>
-    <div class="form-group">
-      <label>外部映射端口</label>
-      <input type="number" id="out_port" data-var="out_port" placeholder="例如: 443" />
+
+    <div class="section-title">进阶出站策略</div>
+    <div class="grid">
+      <div class="form-group">
+        <label>IPv4/IPv6 优先级别 (ip_pref)</label>
+        <select id="ip_pref" data-var="ip_pref">
+          <option value="">默认路由</option>
+          <option value="4">强制 IPv4 优先</option>
+          <option value="6">强制 IPv6 优先</option>
+        </select>
+      </div>
     </div>
-  </div>
 
-  <div class="form-group">
-    <label>优先 IPv4/IPv6 出站策略</label>
-    <select id="ip_pref" data-var="ip_pref">
-      <option value="">默认 (由系统自动路由)</option>
-      <option value="4">强制优先 IPv4 (出站)</option>
-      <option value="6">强制优先 IPv6 (出站)</option>
-    </select>
-  </div>
-  
-  <div class="form-group">
-    <label>Argo Token (固定隧道)</label>
-    <input type="text" id="argo_token" data-var="ARGO_AUTH" placeholder="eyJhIjoi... (留空则使用临时域名隧道)" />
-  </div>
+    <div class="output-wrapper">
+      <div class="terminal-header">
+        <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+        <span style="font-size:0.7rem; color:#666; margin-left:10px;">BASH COMMAND PREVIEW</span>
+      </div>
+      <textarea id="output" rows="4" readonly></textarea>
+    </div>
 
-  <div class="output-area">
-    <label>⚡ 最终执行指令 (自动实时生成)：</label>
-    <textarea id="output" readonly></textarea>
-    
-    <div class="btn-group">
-      <button class="action-btn btn-primary" id="copy">📋 一键复制指令</button>
-      <button class="action-btn btn-secondary" id="reset">🔄 重置清空</button>
+    <div class="footer-btns">
+      <button class="btn btn-main" id="copyBtn">📋 复制一键安装指令</button>
+      <button class="btn btn-sub" onclick="location.reload()">🔄 重置所有参数</button>
     </div>
   </div>
 </div>
 
 <script>
-  // 主题切换逻辑
-  const themeBtn = document.getElementById('theme-btn');
-  themeBtn.addEventListener('click', () => {
-    document.body.classList.toggle('light-mode');
+  // 核心逻辑：监听所有输入并实时生成指令
+  const inputs = document.querySelectorAll('[data-var]');
+  const output = document.getElementById('output');
+
+  function updateCommand() {
+    let vars = "";
+    inputs.forEach(el => {
+      const val = el.value.trim();
+      if (val) {
+        vars += `${el.getAttribute('data-var')}="${val}" `;
+      }
+    });
+    
+    const command = "bash argosbx.sh";
+    output.value = vars + command;
+  }
+
+  inputs.forEach(input => {
+    input.addEventListener('input', updateCommand);
   });
 
-  // 原版 Toast 弹窗逻辑完整保留
-  function showToast
+  // 初始化一次
+  updateCommand();
+
+  // 复制与 Toast 提示
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      const toast = document.getElementById("toast");
+      toast.className = "show";
+      setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+    } catch (err) {
+      document.execCommand('copy');
+    }
+  });
+</script>
+
+</body>
+</html>
