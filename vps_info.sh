@@ -9,6 +9,71 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
+# --- 环境依赖检查与安装 ---
+check_and_install_deps() {
+    local missing_deps=()
+    local install_cmd=""
+    
+    # 检查包管理器
+    if command -v apt-get &> /dev/null; then
+        install_cmd="apt-get install -y"
+    elif command -v yum &> /dev/null; then
+        install_cmd="yum install -y"
+    elif command -v apk &> /dev/null; then
+        install_cmd="apk add --no-cache"
+    elif command -v dnf &> /dev/null; then
+        install_cmd="dnf install -y"
+    else
+        echo -e "${YELLOW}⚠️  未检测到支持的包管理器，请手动安装以下依赖: curl, python3, iputils-ping, dnsutils${PLAIN}"
+        return 1
+    fi
+    
+    # 检查必要依赖
+    for cmd in curl python3 ping; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
+        fi
+    done
+    
+    # 检查 ip 或 ping 命令
+    if ! command -v ip &> /dev/null && ! command -v ifconfig &> /dev/null; then
+        missing_deps+=("iputils-ping")
+    fi
+    
+    # 如果有缺失依赖，尝试安装
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        echo -e "${YELLOW}⚠️  检测到缺失依赖: ${missing_deps[*]}${PLAIN}"
+        echo -e "${CYAN}正在尝试安装...${PLAIN}"
+        
+        # 先更新软件源
+        if command -v apt-get &> /dev/null; then
+            apt-get update -qq >/dev/null 2>&1
+        fi
+        
+        # 安装依赖
+        if command -v apt-get &> /dev/null; then
+            $install_cmd curl python3 iputils-ping dnsutils >/dev/null 2>&1
+        else
+            $install_cmd curl python3 iputils-ping >/dev/null 2>&1
+        fi
+        
+        # 验证安装
+        local installed_ok=true
+        for cmd in curl python3; do
+            if ! command -v "$cmd" &> /dev/null; then
+                installed_ok=false
+                echo -e "${RED}✗ 安装 $cmd 失败，请手动执行: $install_cmd $cmd${PLAIN}"
+            fi
+        done
+        
+        if [ "$installed_ok" = true ]; then
+            echo -e "${GREEN}✓ 依赖安装完成${PLAIN}"
+        fi
+    fi
+}
+check_and_install_deps
+# --- 环境依赖检查结束 ---
+
 # --- 快捷键配置 (完美复刻 ssh_tool 方案) ---
 if [ "$EUID" -eq 0 ]; then
     # 无论是否存在，强制清理旧的错误快捷键
@@ -57,7 +122,6 @@ clear
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "  🛡️  VPS 基础信息与测试工具箱"
 echo -e "  ${SHORTCUT_MSG}"
-
 echo -e "  Github项目:https://github.com/zv201413/info"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
@@ -247,6 +311,7 @@ echo -e "${PURPLE}---- 综合性测试 -------------${PLAIN}"
 echo -e "11. bench性能测试"
 echo -e "12. spiritysdx融合怪测评"
 echo -e "13. Speedtest 测速"
+echo -e "14. LemonBench 综合测试"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e " 0. 退出脚本"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
@@ -278,6 +343,7 @@ case "$test_choice" in
     11) clear; curl -Lso- bench.sh | bash ;;
     12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     13) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    14) clear; curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
