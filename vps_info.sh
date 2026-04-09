@@ -311,7 +311,6 @@ echo -e "${PURPLE}---- 综合性测试 -------------${PLAIN}"
 echo -e "11. bench性能测试"
 echo -e "12. spiritysdx融合怪测评"
 echo -e "13. Speedtest 测速"
-echo -e "14. LemonBench 综合测试"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e " 0. 退出脚本"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
@@ -343,7 +342,6 @@ case "$test_choice" in
     11) clear; curl -Lso- bench.sh | bash ;;
     12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     13) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
-    14) clear; curl -fsL https://ilemonra.in/LemonBenchIntl | bash -s fast ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
