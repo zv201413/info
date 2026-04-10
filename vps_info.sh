@@ -214,18 +214,44 @@ if is_sb:
         w_rt = True
 else:
     # 检查 Xray routing.rules
+    obs = c.get('outbounds', [])
+    # 默认出站通常是配置文件中第一个出站
+    default_outbound = obs[0].get('tag', '') if obs else ''
+    
     rules = c.get('routing', {}).get('rules', [])
+    w_rt = False
+    all_hit_warp = False
+
     for r in rules:
         t = r.get('outboundTag', '')
-        if t in w_tags:
-            w_rt = True; break
-        # Xray 全局规则判断
+        if not t: continue
+        
+        # 判断是否为全局/捕获所有流量的规则
+        is_catch_all = False
         ips = r.get('ip', [])
         if isinstance(ips, str): ips = [ips]
-        if '0.0.0.0/0' in ips or '::/0' in ips: break
+        
+        # 如果包含全局 CIDR，或者规则没有设置任何过滤条件（domain/ip/port等），视为全局规则
+        if '0.0.0.0/0' in ips or '::/0' in ips:
+            is_catch_all = True
+        elif not r.get('domain') and not ips and not r.get('port'):
+            is_catch_all = True
 
-if w_rt: print('WARP')
-else: print('DIRECT')
+        if t in w_tags:
+            w_rt = True
+            if is_catch_all: all_hit_warp = True
+            break
+        elif is_catch_all:
+            # 如果遇到一个非 WARP 的全局规则，说明流量被截断，不再向下匹配
+            break
+
+    # 判定逻辑：
+    # 1. 路由规则中有指向 WARP 的规则生效
+    # 2. 或者没有匹配到任何全局路由规则，且默认出站（第一个outbound）是 WARP
+    if w_rt or (not all_hit_warp and default_outbound in w_tags):
+        print('WARP')
+    else:
+        print('DIRECT')
 " 2>/dev/null)
 
         if [ "$result" == "WARP" ]; then
