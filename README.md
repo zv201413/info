@@ -1,8 +1,24 @@
-# vps_info
+# VPS 基础信息与检测工具箱
 
 VPS 基础信息与测试工具箱 - 一键检测 VPS 硬件配额、网络质量、IP 画像及运行各类测试脚本
 
-## 能检测的内容
+## 使用方法
+
+```bash
+# 方式一：在线直接运行
+bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)
+
+# 方式二：下载后运行
+curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh -o vps_info.sh
+chmod +x vps_info.sh
+./vps_info.sh
+
+# 方式三：使用快捷键（首次运行后生效）
+vps
+```
+
+---
+## 检测内容
 
 ### 1. 虚拟化与环境鉴定
 - 操作系统类型 (Linux/FreeBSD/Darwin)
@@ -35,23 +51,6 @@ VPS 基础信息与测试工具箱 - 一键检测 VPS 硬件配额、网络质�
 
 ---
 
-## 使用方法
-
-```bash
-# 方式一：在线直接运行
-bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)
-
-# 方式二：下载后运行
-curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh -o vps_info.sh
-chmod +x vps_info.sh
-./vps_info.sh
-
-# 方式三：使用快捷键（首次运行后生效）
-vps
-```
-
----
-
 ## 功能特性
 
 - ✅ 首次运行自动配置 `vps` 快捷键（需 root）
@@ -75,13 +74,3 @@ vps
 **解决**：检查配置文件中的规则顺序，确保 WARP 规则在直连之前。
 
 ---
-
-## 更新日志
-
-- **2026-04-09**：新增虚拟化环境深度鉴定、Cgroup 配额识别、FreeBSD 支持
-- **2026-04-04**：新增快捷键 `vps`、环境依赖自动安装、集成 ssh_tool 测试脚本合集
-
----
-
-**作者**：zv201413  
-**项目地址**：https://github.com/zv201413/info
