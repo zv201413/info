@@ -156,7 +156,7 @@ audit_config() {
         echo -e "路径: ${CYAN}$conf_path${PLAIN}"
         
         local is_sb="false"
-        [ "$proc_name" == "Sing-box" ] && is_sb="true"
+        [[ "$proc_name" == *"ing-box"* ]] && is_sb="true"
         
         local result=$(python3 -c "
 import json, sys
@@ -170,70 +170,62 @@ except:
 is_sb = ('$is_sb' == 'true')
 w_tags = set()
 
-if not is_sb:
-    obs = c.get('outbounds', [])
-    for o in obs:
-        p = o.get('protocol', '').lower()
-        t = o.get('tag', '')
-        if p == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
-    if not w_tags:
-        print('DIRECT')
-        sys.exit(0)
-    
-    d_out = obs[0].get('tag') if obs else 'direct'
+# 1. 收集所有可能的 WARP/WireGuard 标签
+# 扫描 outbounds
+for o in c.get('outbounds', []):
+    ty = o.get('type' if is_sb else 'protocol', '').lower()
+    t = o.get('tag', '')
+    if ty == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
+
+# 针对 Sing-box 扫描 endpoints
+if is_sb:
+    for e in c.get('endpoints', []):
+        if e.get('type') == 'wireguard' or 'warp' in e.get('tag', '').lower():
+            w_tags.add(e.get('tag'))
+
+if not w_tags:
+    print('DIRECT')
+    sys.exit(0)
+
+# 2. 检查路由逻辑
+w_rt = False
+if is_sb:
+    # 检查 Sing-box route.rules
+    rules = c.get('route', {}).get('rules', [])
+    for r in rules:
+        out = r.get('outbound', '')
+        # 深度判断是否为全局规则 (Catch-All)
+        is_global = True
+        for k in ['domain', 'domain_suffix', 'domain_keyword', 'geosite', 'geoip']:
+            if r.get(k): is_global = False; break
+        
+        # 特殊处理 ip_cidr: 如果是 0.0.0.0/0 或 ::/0 视为全局
+        cidrs = r.get('ip_cidr', [])
+        if cidrs and '0.0.0.0/0' not in cidrs and '::/0' not in cidrs:
+            is_global = False
+            
+        if out in w_tags:
+            w_rt = True; break
+        elif is_global and out: # 如果遇到非 WARP 的全局规则，提前终止
+            break
+            
+    # 检查 Sing-box final
+    if not w_rt and c.get('route', {}).get('final') in w_tags:
+        w_rt = True
+else:
+    # 检查 Xray routing.rules
     rules = c.get('routing', {}).get('rules', [])
-    
-    w_rt = False
-    all_d = False
     for r in rules:
         t = r.get('outboundTag', '')
+        if t in w_tags:
+            w_rt = True; break
+        # Xray 全局规则判断
         ips = r.get('ip', [])
         if isinstance(ips, str): ips = [ips]
-        
-        ca = False
-        if '0.0.0.0/0' in ips or '::/0' in ips: ca = True
-        elif r.get('network') in ['tcp,udp', 'tcp', 'udp'] and not r.get('domain') and not ips: ca = True
-        
-        if t in w_tags:
-            w_rt = True; break
-        elif ca:
-            all_d = True; break
-            
-    if w_rt: print('WARP')
-    elif all_d: print('DIRECT')
-    elif d_out in w_tags: print('WARP')
-    else: print('DIRECT')
+        if '0.0.0.0/0' in ips or '::/0' in ips: break
 
-else:
-    obs = c.get('outbounds', [])
-    for o in obs:
-        ty = o.get('type', '').lower()
-        t = o.get('tag', '')
-        if ty == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
-    if not w_tags:
-        print('DIRECT')
-        sys.exit(0)
-        
-    d_out = obs[0].get('tag') if obs else 'direct'
-    rules = c.get('route', {}).get('rules', [])
-    
-    w_rt = False
-    all_d = False
-    for r in rules:
-        t = r.get('outbound', '')
-        ca = True
-        for k in ['domain', 'domain_suffix', 'domain_keyword', 'domain_regex', 'geosite', 'ip_cidr', 'geoip']:
-            if r.get(k): ca = False
-            
-        if t in w_tags:
-            w_rt = True; break
-        elif ca:
-            all_d = True; break
-            
-    if w_rt: print('WARP')
-    elif all_d: print('DIRECT')
-    elif d_out in w_tags: print('WARP')
-    else: print('DIRECT')
+if w_rt: print('WARP')
+else: print('DIRECT')
 " 2>/dev/null)
 
         if [ "$result" == "WARP" ]; then
@@ -245,11 +237,6 @@ else:
         fi
     fi
 }
-x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
-[ -n "$x_path" ] && audit_config "Xray" "$x_path"
-s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
-[ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
-echo -e "----------------------------------------------------------------"
 
 # 4. IP 深度画像
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
