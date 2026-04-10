@@ -135,61 +135,54 @@ cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
 # 获取内存总量 (用于后续判断是否为共享核心)
 mem_total=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
 
-# --- 增强版核心数探测逻辑 ---
+# --- 增强版核心数探测逻辑 (支持小数与 Cgroup) ---
 cpu_total=$(grep -c ^processor /proc/cpuinfo)
 nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
 limit_cores=""
 
-# 1-1. 探测 Cgroup 限制 (针对 Docker/LXC 容器)
 if [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
     quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
     period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+    # 使用 awk 计算以支持 0.5 核这种配额情况
     if [ "$quota" -ne -1 ] && [ "$period" -ne 0 ]; then
-        limit_cores=$((quota / period))
+        limit_cores=$(awk "BEGIN {printf \"%.1f\", $quota / $period}")
+        # 如果是整数则去掉小数点后缀 (例如 1.0 -> 1)
+        limit_cores=$(echo $limit_cores | sed 's/\.0$//')
     fi
 fi
 
-# 1-2. 最终显示逻辑判断
 if [ -n "$limit_cores" ]; then
-    # 如果有 Cgroup 限制，显示限制核心数
     display_cores="${limit_cores} Core(s) [Quota]"
 elif [ "$nproc_usable" -gt 4 ] && [ "$mem_total" -lt 2048 ]; then
-    # 针对 16核/1G内存 这种典型共享架构进行识别
     display_cores="${nproc_usable} Core(s) [Shared]"
 else
-    # 普通架构显示实际可用核心
     display_cores="${nproc_usable} Core(s)"
 fi
-# -------------------------
+# ----------------------------------------------
 
-# 获取 BBR 状态
-tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
-[ "$tcp_cc" == "bbr" ] && cc_status="${GREEN}BBR (加速中)${PLAIN}" || cc_status="${YELLOW}${tcp_cc:-"未知"}${PLAIN}"
+# --- 增强版拥塞算法探测 (ss -i 深度分析) ---
+# 逻辑：优先尝试从活跃连接中嗅探 BBR，其次读取系统文件，最后兜底
+if command -v ss &> /dev/null; then
+    # 尝试从 TCP 统计中提取算法名称
+    tcp_cc=$(ss -ti | grep -oP '(?<= )(bbr|cubic|reno|hybla|westwood)(?= )' | head -n1)
+fi
+
+if [ -z "$tcp_cc" ]; then
+    # 备选：读取系统协议栈配置
+    tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
+fi
+
+case "$tcp_cc" in
+    "bbr") cc_status="${GREEN}BBR (加速中)${PLAIN}" ;;
+    "cubic") cc_status="${CYAN}Cubic (标准)${PLAIN}" ;;
+    "reno") cc_status="${YELLOW}Reno (经典)${PLAIN}" ;;
+    *) cc_status="${YELLOW}${tcp_cc:-"无法探测"}${PLAIN}" ;;
+esac
+# ----------------------------------------------
 
 # 综合信息输出
 echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores}) | 内存: ${GREEN}${mem_total:-"未知"}MB${PLAIN}"
 echo -e "拥塞算法: $cc_status"
-echo -e "----------------------------------------------------------------"
-
-# 2. 网络质量与抖动分析
-echo -e "${YELLOW}[双栈网络质量检测]${PLAIN}"
-get_jitter() {
-    local target=$1; local cmd=$2
-    local latencies=($($cmd -c 4 -n -W 2 $target 2>/dev/null | grep "time=" | awk -F'time=' '{print $2}' | awk '{print $1}'))
-    if [ ${#latencies[@]} -lt 2 ]; then
-        echo -e "${RED}线路不通或被拦截${PLAIN}"
-    else
-        stats=$(printf '%s\n' "${latencies[@]}" | awk '{if(min==""){min=max=$1}; if($1>max)max=$1; if($1<min)min=$1; sum+=$1} END {printf "%.2f|%.2f", max-min, sum/NR}')
-        diff=$(echo $stats | cut -d'|' -f1)
-        if (( $(awk -v d="$diff" 'BEGIN {print (d < 2.0)}') )); then echo -e "${GREEN}极佳 (抖动 ${diff}ms)${PLAIN}"
-        elif (( $(awk -v d="$diff" 'BEGIN {print (d < 10.0)}') )); then echo -e "${YELLOW}一般 (抖动 ${diff}ms)${PLAIN}"
-        else echo -e "${RED}拥堵 (抖动 ${diff}ms)${PLAIN}"; fi
-    fi
-}
-echo -n -e "IPv4 抖动 (1.1.1.1): "
-get_jitter "1.1.1.1" "ping"
-echo -n -e "IPv6 抖动 (CF v6): "
-get_jitter "2606:4700:4700::1111" "ping6"
 echo -e "----------------------------------------------------------------"
 
 # 3. 进程审计
