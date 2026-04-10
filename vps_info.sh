@@ -127,19 +127,47 @@ echo -e "${BLUE}═════════════════════�
 
 # 1. 基础硬件与内核协议栈
 echo -e "${YELLOW}[基础硬件与内核协议栈]${PLAIN}"
+
+# 获取 CPU 型号
 cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
 [ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
 
-# --- 新增：获取核心数逻辑 ---
-cpu_cores=$(grep -c ^processor /proc/cpuinfo)
+# 获取内存总量 (用于后续判断是否为共享核心)
+mem_total=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
+
+# --- 增强版核心数探测逻辑 ---
+cpu_total=$(grep -c ^processor /proc/cpuinfo)
+nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
+limit_cores=""
+
+# 1-1. 探测 Cgroup 限制 (针对 Docker/LXC 容器)
+if [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
+    quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
+    period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+    if [ "$quota" -ne -1 ] && [ "$period" -ne 0 ]; then
+        limit_cores=$((quota / period))
+    fi
+fi
+
+# 1-2. 最终显示逻辑判断
+if [ -n "$limit_cores" ]; then
+    # 如果有 Cgroup 限制，显示限制核心数
+    display_cores="${limit_cores} Core(s) [Quota]"
+elif [ "$nproc_usable" -gt 4 ] && [ "$mem_total" -lt 2048 ]; then
+    # 针对 16核/1G内存 这种典型共享架构进行识别
+    display_cores="${nproc_usable} Core(s) [Shared]"
+else
+    # 普通架构显示实际可用核心
+    display_cores="${nproc_usable} Core(s)"
+fi
 # -------------------------
 
-mem_total=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
+# 获取 BBR 状态
 tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
 [ "$tcp_cc" == "bbr" ] && cc_status="${GREEN}BBR (加速中)${PLAIN}" || cc_status="${YELLOW}${tcp_cc:-"未知"}${PLAIN}"
 
-# 修改显示行，加入核心数 (Cores)
-echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${cpu_cores:-"?"} Cores) | 内存: ${GREEN}${mem_total:-"未知"}MB${PLAIN}"
+# 综合信息输出
+echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores}) | 内存: ${GREEN}${mem_total:-"未知"}MB${PLAIN}"
 echo -e "拥塞算法: $cc_status"
 echo -e "----------------------------------------------------------------"
 
