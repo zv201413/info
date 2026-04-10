@@ -243,8 +243,9 @@ audit_config() {
         local result=$(python3 -c "
 import json, sys
 try:
-    with open('$conf_path', 'r') as f:
-        c = json.load(f)
+    with open('$conf_path', 'r', encoding='utf-8') as f:
+        content = f.read().replace('\xa0', ' ')
+        c = json.loads(content)
 except:
     print('ERROR')
     sys.exit(0)
@@ -252,7 +253,7 @@ except:
 is_sb = ('$is_sb' == 'true')
 w_tags = set()
 
-# 收集 WARP/WireGuard 标签
+# 1. 收集所有可能的 WARP/WireGuard 标签
 for o in c.get('outbounds', []):
     ty = o.get('type' if is_sb else 'protocol', '').lower()
     t = o.get('tag', '')
@@ -267,6 +268,7 @@ if not w_tags:
     print('DIRECT')
     sys.exit(0)
 
+# 2. 检查路由逻辑 (完全恢复原始严谨判定)
 w_rt = False
 if is_sb:
     rules = c.get('route', {}).get('rules', [])
@@ -275,30 +277,44 @@ if is_sb:
         is_global = True
         for k in ['domain', 'domain_suffix', 'domain_keyword', 'geosite', 'geoip']:
             if r.get(k): is_global = False; break
+        
         cidrs = r.get('ip_cidr', [])
-        if cidrs and '0.0.0.0/0' not in cidrs and '::/0' not in cidrs: is_global = False
-        if out in w_tags: w_rt = True; break
-        elif is_global and out: break
-    if not w_rt and c.get('route', {}).get('final') in w_tags: w_rt = True
+        if cidrs and '0.0.0.0/0' not in cidrs and '::/0' not in cidrs:
+            is_global = False
+            
+        if out in w_tags:
+            w_rt = True; break
+        elif is_global and out: 
+            break
+            
+    if not w_rt and c.get('route', {}).get('final') in w_tags:
+        w_rt = True
 else:
     obs = c.get('outbounds', [])
     default_outbound = obs[0].get('tag', '') if obs else ''
     rules = c.get('routing', {}).get('rules', [])
-    w_rt = False
     all_hit_warp = False
+
     for r in rules:
         t = r.get('outboundTag', '')
         if not t: continue
+        
         is_catch_all = False
         ips = r.get('ip', [])
         if isinstance(ips, str): ips = [ips]
-        if '0.0.0.0/0' in ips or '::/0' in ips: is_catch_all = True
-        elif not r.get('domain') and not ips and not r.get('port'): is_catch_all = True
+        
+        if '0.0.0.0/0' in ips or '::/0' in ips:
+            is_catch_all = True
+        elif not r.get('domain') and not ips and not r.get('port'):
+            is_catch_all = True
+
         if t in w_tags:
             w_rt = True
             if is_catch_all: all_hit_warp = True
             break
-        elif is_catch_all: break
+        elif is_catch_all:
+            break
+
     if w_rt or (not all_hit_warp and default_outbound in w_tags):
         print('WARP')
     else:
