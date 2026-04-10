@@ -238,6 +238,15 @@ else: print('DIRECT')
     fi
 }
 
+# 实际调用审计逻辑
+x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
+[ -n "$x_path" ] && audit_config "Xray" "$x_path"
+
+s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
+[ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
+
+echo -e "----------------------------------------------------------------"
+
 # 4. IP 深度画像
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
 get_ip_info() {
