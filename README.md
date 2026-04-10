@@ -3,17 +3,12 @@
 VPS 基础信息与测试工具箱 - 一键检测 VPS 硬件配额、网络质量、IP 画像及运行各类测试脚本
 
 ## 使用方法
-
+### 方式一：在线直接运行
 ```bash
-# 方式一：在线直接运行
 bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)
-
-# 方式二：下载后运行
-curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh -o vps_info.sh
-chmod +x vps_info.sh
-./vps_info.sh
-
-# 方式三：使用快捷键（首次运行后生效）
+```
+### 方式二：使用快捷键（首次运行后生效）
+```bash
 vps
 ```
 
