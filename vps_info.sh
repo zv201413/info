@@ -229,7 +229,7 @@ esac
 echo -e "拥塞算法: $cc_status"
 echo -e "----------------------------------------------------------------"
 
-# 3. 进程审计
+# --- 3. 进程审计 (完全恢复原始严谨逻辑) ---
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
 audit_config() {
     local proc_name=$1; local conf_path=$2
@@ -241,12 +241,15 @@ audit_config() {
         [[ "$proc_name" == *"ing-box"* ]] && is_sb="true"
         
         local result=$(python3 -c "
-import json, sys
+import json, sys, re
 try:
-    with open('$conf_path', 'r', encoding='utf-8') as f:
+    # 核心修复：使用 utf-8-sig 消除 BOM 干扰
+    with open('$conf_path', 'r', encoding='utf-8-sig') as f:
         content = f.read().replace('\xa0', ' ')
+        # 核心修复：兼容 JSONC 格式，消除可能引发报错的单行或多行注释
+        content = re.sub(r'//.*?\n|/\*.*?\*/', '\n', content, flags=re.S)
         c = json.loads(content)
-except:
+except Exception as e:
     print('ERROR')
     sys.exit(0)
 
