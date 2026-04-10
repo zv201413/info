@@ -14,7 +14,6 @@ check_and_install_deps() {
     local missing_deps=()
     local install_cmd=""
     
-    # 检查包管理器
     if command -v apt-get &> /dev/null; then
         install_cmd="apt-get install -y"
     elif command -v yum &> /dev/null; then
@@ -28,61 +27,30 @@ check_and_install_deps() {
         return 1
     fi
     
-    # 检查必要依赖
     for cmd in curl python3 ping; do
         if ! command -v "$cmd" &> /dev/null; then
             missing_deps+=("$cmd")
         fi
     done
     
-    # 检查 ip 或 ping 命令
     if ! command -v ip &> /dev/null && ! command -v ifconfig &> /dev/null; then
         missing_deps+=("iputils-ping")
     fi
     
-    # 如果有缺失依赖，尝试安装
     if [ ${#missing_deps[@]} -gt 0 ]; then
         echo -e "${YELLOW}⚠️  检测到缺失依赖: ${missing_deps[*]}${PLAIN}"
         echo -e "${CYAN}正在尝试安装...${PLAIN}"
-        
-        # 先更新软件源
-        if command -v apt-get &> /dev/null; then
-            apt-get update -qq >/dev/null 2>&1
-        fi
-        
-        # 安装依赖
-        if command -v apt-get &> /dev/null; then
-            $install_cmd curl python3 iputils-ping dnsutils >/dev/null 2>&1
-        else
-            $install_cmd curl python3 iputils-ping >/dev/null 2>&1
-        fi
-        
-        # 验证安装
-        local installed_ok=true
-        for cmd in curl python3; do
-            if ! command -v "$cmd" &> /dev/null; then
-                installed_ok=false
-                echo -e "${RED}✗ 安装 $cmd 失败，请手动执行: $install_cmd $cmd${PLAIN}"
-            fi
-        done
-        
-        if [ "$installed_ok" = true ]; then
-            echo -e "${GREEN}✓ 依赖安装完成${PLAIN}"
-        fi
+        [ -x "$(command -v apt-get)" ] && apt-get update -qq >/dev/null 2>&1
+        $install_cmd curl python3 iputils-ping dnsutils >/dev/null 2>&1 || $install_cmd curl python3 iputils-ping >/dev/null 2>&1
     fi
 }
 check_and_install_deps
-# --- 环境依赖检查结束 ---
 
-# --- 快捷键配置 (完美复刻 ssh_tool 方案) ---
+# --- 快捷键配置 ---
 if [ "$EUID" -eq 0 ]; then
-    # 无论是否存在，强制清理旧的错误快捷键
     rm -f /usr/local/bin/vps
-
-    # 写入新的强健版快捷键逻辑
     script_path=$(realpath "$0")
     if [ -f "$script_path" ] && [[ "$script_path" == *"/vps_info"* ]]; then
-        # 如果是本地运行的脚本，优先使用本地路径，方便实时修改测试
         wrapper_content="#!/bin/bash
 if [ -f \"$script_path\" ]; then
     bash \"$script_path\" \"\$@\"
@@ -95,19 +63,15 @@ fi"
         wrapper_content='#!/bin/bash
 SCRIPT_URL="https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh"
 TEMP_SCRIPT="/tmp/vps_info_latest.sh"
-
-# 下载最新脚本到临时目录
 if curl -fsSL "$SCRIPT_URL" -o "$TEMP_SCRIPT" >/dev/null 2>&1; then
     chmod +x "$TEMP_SCRIPT" >/dev/null 2>&1
     bash "$TEMP_SCRIPT" "$@"
-    # 运行完毕后销毁痕迹
     rm -f "$TEMP_SCRIPT" >/dev/null 2>&1
 else
     echo -e "\033[0;31m无法在线获取脚本，请检查网络连接\033[0m"
     exit 1
 fi'
     fi
-
     echo "$wrapper_content" > /usr/local/bin/vps
     chmod +x /usr/local/bin/vps
     hash -r >/dev/null 2>&1
@@ -115,10 +79,8 @@ fi'
 else
     SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
-# --- 快捷键配置结束 ---
 
 clear
-
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "  🛡️  VPS 基础信息与测试工具箱"
 echo -e "  ${SHORTCUT_MSG}"
@@ -132,45 +94,47 @@ echo -e "${YELLOW}[基础硬件与内核协议栈]${PLAIN}"
 cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
 [ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
 
-# 获取内存总量 (用于后续判断是否为共享核心)
+# 获取内存总量
 mem_total=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
 
-# --- 增强版核心数探测逻辑 (支持小数与 Cgroup) ---
+# --- 增强版核心数探测逻辑 (引入验证有效的第一组和第二组代码) ---
 cpu_total=$(grep -c ^processor /proc/cpuinfo)
 nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
 limit_cores=""
 
-if [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
-    quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
-    period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
-    # 使用 awk 计算以支持 0.5 核这种配额情况
-    if [ "$quota" -ne -1 ] && [ "$period" -ne 0 ]; then
-        limit_cores=$(awk "BEGIN {printf \"%.1f\", $quota / $period}")
-        # 如果是整数则去掉小数点后缀 (例如 1.0 -> 1)
-        limit_cores=$(echo $limit_cores | sed 's/\.0$//')
+# 优先尝试 第一组：针对新系统 (Cgroup v2)
+if [ -f /sys/fs/cgroup/cpu.max ]; then
+    read -r q p < /sys/fs/cgroup/cpu.max
+    if [ "$q" != "max" ] && [ "$p" -ne 0 ]; then
+        limit_cores=$(awk "BEGIN {printf \"%.1f\", $q / $p}")
     fi
 fi
 
+# 如果未获取到，尝试 第二组：针对旧系统/传统 Docker (Cgroup v1)
+if [ -z "$limit_cores" ] && [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
+    q_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
+    p_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+    if [ "$q_v1" -ne -1 ] && [ "$p_v1" -ne 0 ]; then
+        limit_cores=$(awk "BEGIN {printf \"%.1f\", $q_v1 / $p_v1}")
+    fi
+fi
+
+# 格式化显示
 if [ -n "$limit_cores" ]; then
+    limit_cores=$(echo $limit_cores | sed 's/\.0$//')
     display_cores="${limit_cores} Core(s) [Quota]"
 elif [ "$nproc_usable" -gt 4 ] && [ "$mem_total" -lt 2048 ]; then
     display_cores="${nproc_usable} Core(s) [Shared]"
 else
     display_cores="${nproc_usable} Core(s)"
 fi
-# ----------------------------------------------
+# ------------------------------------------------------------
 
-# --- 增强版拥塞算法探测 (ss -i 深度分析) ---
-# 逻辑：优先尝试从活跃连接中嗅探 BBR，其次读取系统文件，最后兜底
+# --- 增强版拥塞算法探测 ---
 if command -v ss &> /dev/null; then
-    # 尝试从 TCP 统计中提取算法名称
     tcp_cc=$(ss -ti | grep -oP '(?<= )(bbr|cubic|reno|hybla|westwood)(?= )' | head -n1)
 fi
-
-if [ -z "$tcp_cc" ]; then
-    # 备选：读取系统协议栈配置
-    tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
-fi
+[ -z "$tcp_cc" ] && tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
 
 case "$tcp_cc" in
     "bbr") cc_status="${GREEN}BBR (加速中)${PLAIN}" ;;
@@ -178,9 +142,7 @@ case "$tcp_cc" in
     "reno") cc_status="${YELLOW}Reno (经典)${PLAIN}" ;;
     *) cc_status="${YELLOW}${tcp_cc:-"无法探测"}${PLAIN}" ;;
 esac
-# ----------------------------------------------
 
-# 综合信息输出
 echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores}) | 内存: ${GREEN}${mem_total:-"未知"}MB${PLAIN}"
 echo -e "拥塞算法: $cc_status"
 echo -e "----------------------------------------------------------------"
