@@ -87,50 +87,134 @@ echo -e "  ${SHORTCUT_MSG}"
 echo -e "  Github项目: https://github.com/zv201413/info"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
+# --- 虚拟化与环境深度鉴定 ---
+echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
+os_type=$(uname -s)
+echo -e "操作系统: ${CYAN}$os_type${PLAIN}"
+
+if [ "$os_type" = "FreeBSD" ]; then
+    host_name=$(hostname)
+    if [[ "$host_name" == *"serv00.net"* ]]; then
+        virt_result="Shared Hosting (Serv00.com)"
+    elif [[ "$host_name" == *"ct8.pl"* ]]; then
+        virt_result="Shared Hosting (CT8.pl)"
+    else
+        virt_result="FreeBSD Shared/Dedicated"
+    fi
+else
+    if [ -n "$MODAL_CONTAINER_ARGUMENTS_PATH" ]; then
+        virt_result="Modal Serverless (gVisor Container)"
+    elif [ -f /.dockerenv ]; then
+        virt_result="Docker Container"
+    elif [ -f /proc/1/cgroup ] && grep -q "docker" /proc/1/cgroup; then
+        virt_result="Docker Container"
+    elif [ -d /proc/vz ]; then
+        virt_result="OpenVZ (LXC)"
+    elif [ -f /proc/1/environ ] && grep -qi "lxc" /proc/1/environ; then
+        virt_result="LXC Container"
+    elif command -v systemd-detect-virt >/dev/null 2>&1; then
+        virt_result=$(systemd-detect-virt)
+    else
+        vendor=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)
+        if [[ "$vendor" == *"QEMU"* || "$vendor" == *"Red Hat"* ]]; then
+            virt_result="KVM (VPS)"
+        elif [[ "$vendor" == *"VMware"* ]]; then
+            virt_result="VMware"
+        else
+            virt_result="Physical Machine / Unknown VPS"
+        fi
+    fi
+fi
+echo -e "环境类型: ${GREEN}$virt_result${PLAIN}"
+echo -e "----------------------------------------------------------------"
+
 # 1. 基础硬件与内核协议栈
-echo -e "${YELLOW}[基础硬件与内核协议栈]${PLAIN}"
+echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
 
 # 获取 CPU 型号
 cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
 [ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
 
-# 获取内存总量
-mem_total=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
-
-# --- 增强版核心数探测逻辑 (引入验证有效的第一组和第二组代码) ---
-cpu_total=$(grep -c ^processor /proc/cpuinfo)
-nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
-limit_cores=""
-
-# 优先尝试 第一组：针对新系统 (Cgroup v2)
-if [ -f /sys/fs/cgroup/cpu.max ]; then
-    read -r q p < /sys/fs/cgroup/cpu.max
-    if [ "$q" != "max" ] && [ "$p" -ne 0 ]; then
-        limit_cores=$(awk "BEGIN {printf \"%.1f\", $q / $p}")
-    fi
-fi
-
-# 如果未获取到，尝试 第二组：针对旧系统/传统 Docker (Cgroup v1)
-if [ -z "$limit_cores" ] && [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
-    q_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
-    p_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
-    if [ "$q_v1" -ne -1 ] && [ "$p_v1" -ne 0 ]; then
-        limit_cores=$(awk "BEGIN {printf \"%.1f\", $q_v1 / $p_v1}")
-    fi
-fi
-
-# 格式化显示
-if [ -n "$limit_cores" ]; then
-    limit_cores=$(echo $limit_cores | sed 's/\.0$//')
-    display_cores="${limit_cores} Core(s) [Quota]"
-elif [ "$nproc_usable" -gt 4 ] && [ "$mem_total" -lt 2048 ]; then
-    display_cores="${nproc_usable} Core(s) [Shared]"
+# --- CPU 配额审计逻辑 ---
+if [ "$os_type" = "FreeBSD" ]; then
+    display_cores="$(sysctl -n hw.ncpu) Core(s)"
 else
-    display_cores="${nproc_usable} Core(s)"
-fi
-# ------------------------------------------------------------
+    cpu_total=$(grep -c ^processor /proc/cpuinfo)
+    nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
+    limit_cores=""
 
-# --- 增强版拥塞算法探测 ---
+    # 尝试 Cgroup v2
+    if [ -f /sys/fs/cgroup/cpu.max ]; then
+        read -r q p < /sys/fs/cgroup/cpu.max
+        if [ "$q" != "max" ] && [ "$p" -ne 0 ]; then
+            limit_cores=$(awk "BEGIN {printf \"%.1f\", $q / $p}")
+        fi
+    fi
+
+    # 尝试 Cgroup v1
+    if [ -z "$limit_cores" ] && [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
+        q_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
+        p_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+        if [ "$q_v1" -ne -1 ] && [ "$p_v1" -ne 0 ]; then
+            limit_cores=$(awk "BEGIN {printf \"%.1f\", $q_v1 / $p_v1}")
+        fi
+    fi
+
+    if [ -n "$limit_cores" ]; then
+        limit_cores=$(echo $limit_cores | sed 's/\.0$//')
+        display_cores="${limit_cores} Core(s) [Quota]"
+    elif [ "$nproc_usable" -gt 4 ] && [ "$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')" -lt 2048 ]; then
+        display_cores="${nproc_usable} Core(s) [Shared]"
+    else
+        display_cores="${nproc_usable} Core(s)"
+    fi
+fi
+
+# --- 内存深度审计逻辑 ---
+get_memory_info() {
+    if [ "$os_type" = "FreeBSD" ]; then
+        echo -e "内存限制: ${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
+    else
+        local mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
+        if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
+            local true_mem=$((mem_limit_bytes / 1024 / 1024))
+            echo -e "内存限制: ${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
+        else
+            local total_mem=$(free -m | awk '/Mem:/ {print $2}')
+            echo -e "内存总量: ${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
+        fi
+    fi
+}
+
+# --- 存储审计逻辑 (解决总量虚假问题) ---
+get_rom_info() {
+    if [ "$os_type" = "FreeBSD" ]; then
+         # FreeBSD 下尝试探测 quota
+         local freebsd_quota=$(quota -uv $(whoami) 2>/dev/null | awk '/\/dev\// {printf "已用: %.2fMB | 限额: %.2fMB", $2/1024, $3/1024}')
+         if [ -n "$freebsd_quota" ]; then
+            echo -e "磁盘空间: ${CYAN}${freebsd_quota}${PLAIN}"
+         else
+            echo -e "磁盘空间: ${GREEN}$(df -h . | awk 'NR==2 {print $3}') / $(df -h . | awk 'NR==2 {print $2}')${PLAIN}"
+         fi
+    else
+        local rom_total_raw=$(df -m . | awk 'NR==2 {print $2}')
+        if [ "$rom_total_raw" -gt 512000 ]; then
+            local home_used=$(du -sh $HOME 2>/dev/null | awk '{print $1}')
+            local tmp_used=$(du -sh /tmp 2>/dev/null | awk '{print $1}')
+            echo -e "磁盘空间: ${CYAN}动态虚拟存储 (按需分配)${PLAIN}"
+            echo -e "实际已用: ${GREEN}${home_used}${PLAIN} (家目录) / ${YELLOW}${tmp_used}${PLAIN} (临时目录)"
+        else
+            echo -e "磁盘空间: ${GREEN}$(df -h . | awk 'NR==2 {print $3}') / $(df -h . | awk 'NR==2 {print $2}')${PLAIN}"
+        fi
+    fi
+}
+
+# 输出硬件信息
+echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores})"
+get_memory_info
+get_rom_info
+
+# --- 拥塞算法探测 ---
 if command -v ss &> /dev/null; then
     tcp_cc=$(ss -ti | grep -oP '(?<= )(bbr|cubic|reno|hybla|westwood)(?= )' | head -n1)
 fi
@@ -142,8 +226,6 @@ case "$tcp_cc" in
     "reno") cc_status="${YELLOW}Reno (经典)${PLAIN}" ;;
     *) cc_status="${YELLOW}${tcp_cc:-"无法探测"}${PLAIN}" ;;
 esac
-
-echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores}) | 内存: ${GREEN}${mem_total:-"未知"}MB${PLAIN}"
 echo -e "拥塞算法: $cc_status"
 echo -e "----------------------------------------------------------------"
 
@@ -170,14 +252,12 @@ except:
 is_sb = ('$is_sb' == 'true')
 w_tags = set()
 
-# 1. 收集所有可能的 WARP/WireGuard 标签
-# 扫描 outbounds
+# 收集 WARP/WireGuard 标签
 for o in c.get('outbounds', []):
     ty = o.get('type' if is_sb else 'protocol', '').lower()
     t = o.get('tag', '')
     if ty == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
 
-# 针对 Sing-box 扫描 endpoints
 if is_sb:
     for e in c.get('endpoints', []):
         if e.get('type') == 'wireguard' or 'warp' in e.get('tag', '').lower():
@@ -187,67 +267,38 @@ if not w_tags:
     print('DIRECT')
     sys.exit(0)
 
-# 2. 检查路由逻辑
 w_rt = False
 if is_sb:
-    # 检查 Sing-box route.rules
     rules = c.get('route', {}).get('rules', [])
     for r in rules:
         out = r.get('outbound', '')
-        # 深度判断是否为全局规则 (Catch-All)
         is_global = True
         for k in ['domain', 'domain_suffix', 'domain_keyword', 'geosite', 'geoip']:
             if r.get(k): is_global = False; break
-        
-        # 特殊处理 ip_cidr: 如果是 0.0.0.0/0 或 ::/0 视为全局
         cidrs = r.get('ip_cidr', [])
-        if cidrs and '0.0.0.0/0' not in cidrs and '::/0' not in cidrs:
-            is_global = False
-            
-        if out in w_tags:
-            w_rt = True; break
-        elif is_global and out: # 如果遇到非 WARP 的全局规则，提前终止
-            break
-            
-    # 检查 Sing-box final
-    if not w_rt and c.get('route', {}).get('final') in w_tags:
-        w_rt = True
+        if cidrs and '0.0.0.0/0' not in cidrs and '::/0' not in cidrs: is_global = False
+        if out in w_tags: w_rt = True; break
+        elif is_global and out: break
+    if not w_rt and c.get('route', {}).get('final') in w_tags: w_rt = True
 else:
-    # 检查 Xray routing.rules
     obs = c.get('outbounds', [])
-    # 默认出站通常是配置文件中第一个出站
     default_outbound = obs[0].get('tag', '') if obs else ''
-    
     rules = c.get('routing', {}).get('rules', [])
     w_rt = False
     all_hit_warp = False
-
     for r in rules:
         t = r.get('outboundTag', '')
         if not t: continue
-        
-        # 判断是否为全局/捕获所有流量的规则
         is_catch_all = False
         ips = r.get('ip', [])
         if isinstance(ips, str): ips = [ips]
-        
-        # 如果包含全局 CIDR，或者规则没有设置任何过滤条件（domain/ip/port等），视为全局规则
-        if '0.0.0.0/0' in ips or '::/0' in ips:
-            is_catch_all = True
-        elif not r.get('domain') and not ips and not r.get('port'):
-            is_catch_all = True
-
+        if '0.0.0.0/0' in ips or '::/0' in ips: is_catch_all = True
+        elif not r.get('domain') and not ips and not r.get('port'): is_catch_all = True
         if t in w_tags:
             w_rt = True
             if is_catch_all: all_hit_warp = True
             break
-        elif is_catch_all:
-            # 如果遇到一个非 WARP 的全局规则，说明流量被截断，不再向下匹配
-            break
-
-    # 判定逻辑：
-    # 1. 路由规则中有指向 WARP 的规则生效
-    # 2. 或者没有匹配到任何全局路由规则，且默认出站（第一个outbound）是 WARP
+        elif is_catch_all: break
     if w_rt or (not all_hit_warp and default_outbound in w_tags):
         print('WARP')
     else:
@@ -264,13 +315,10 @@ else:
     fi
 }
 
-# 实际调用审计逻辑
 x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
 [ -n "$x_path" ] && audit_config "Xray" "$x_path"
-
 s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
-
 echo -e "----------------------------------------------------------------"
 
 # 4. IP 深度画像
