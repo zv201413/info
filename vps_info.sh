@@ -229,7 +229,7 @@ esac
 echo -e "拥塞算法: $cc_status"
 echo -e "----------------------------------------------------------------"
 
-# --- 3. 进程审计 (完全恢复原始严谨逻辑) ---
+# --- 3. 进程审计 (增强版容错逻辑) ---
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
 audit_config() {
     local proc_name=$1; local conf_path=$2
@@ -243,13 +243,17 @@ audit_config() {
         local result=$(python3 -c "
 import json, sys, re
 try:
-    # 核心修复：使用 utf-8-sig 消除 BOM 干扰
-    with open('$conf_path', 'r', encoding='utf-8-sig') as f:
-        content = f.read().replace('\xa0', ' ')
-        # 核心修复：兼容 JSONC 格式，消除可能引发报错的单行或多行注释
-        content = re.sub(r'//.*?\n|/\*.*?\*/', '\n', content, flags=re.S)
-        c = json.loads(content)
+    with open('$conf_path', 'rb') as f:
+        raw_content = f.read().decode('utf-8-sig', errors='ignore')
+    
+    # 终极清洗：去除 \xa0, \u200b 等所有非标准空白字符，统一为空格
+    content = re.sub(r'[\xa0\u200b\u200c\u200d\u200e\u200f]', ' ', raw_content)
+    # 清除 JSONC 注释
+    content = re.sub(r'//.*?\n|/\*.*?\*/', '\n', content, flags=re.S)
+    
+    c = json.loads(content)
 except Exception as e:
+    # 如果还是失败，打印提示用于调试（可选：print(str(e), file=sys.stderr)）
     print('ERROR')
     sys.exit(0)
 
@@ -257,11 +261,13 @@ is_sb = ('$is_sb' == 'true')
 w_tags = set()
 
 # 1. 收集所有可能的 WARP/WireGuard 标签
+# 检查 outbounds
 for o in c.get('outbounds', []):
     ty = o.get('type' if is_sb else 'protocol', '').lower()
     t = o.get('tag', '')
     if ty == 'wireguard' or 'warp' in t.lower(): w_tags.add(t)
 
+# Sing-box 额外检查 endpoints
 if is_sb:
     for e in c.get('endpoints', []):
         if e.get('type') == 'wireguard' or 'warp' in e.get('tag', '').lower():
@@ -271,57 +277,45 @@ if not w_tags:
     print('DIRECT')
     sys.exit(0)
 
-# 2. 检查路由逻辑 (完全恢复原始严谨判定)
+# 2. 检查路由逻辑
 w_rt = False
 if is_sb:
     rules = c.get('route', {}).get('rules', [])
     for r in rules:
         out = r.get('outbound', '')
-        is_global = True
-        for k in ['domain', 'domain_suffix', 'domain_keyword', 'geosite', 'geoip']:
-            if r.get(k): is_global = False; break
-        
-        cidrs = r.get('ip_cidr', [])
-        if cidrs and '0.0.0.0/0' not in cidrs and '::/0' not in cidrs:
-            is_global = False
-            
+        # 只要路由规则中目的地是 WARP 标签
         if out in w_tags:
-            w_rt = True; break
-        elif is_global and out: 
+            w_rt = True
+            break
+        
+        # 严谨逻辑：如果是全局规则但导向了其他地方，则停止搜索
+        is_global = False
+        cidrs = r.get('ip_cidr', [])
+        if cidrs and ('0.0.0.0/0' in cidrs or '::/0' in cidrs):
+            is_global = True
+        
+        if is_global and out and out not in w_tags:
             break
             
     if not w_rt and c.get('route', {}).get('final') in w_tags:
         w_rt = True
 else:
+    # Xray 逻辑
     obs = c.get('outbounds', [])
     default_outbound = obs[0].get('tag', '') if obs else ''
     rules = c.get('routing', {}).get('rules', [])
     all_hit_warp = False
-
     for r in rules:
         t = r.get('outboundTag', '')
-        if not t: continue
-        
-        is_catch_all = False
-        ips = r.get('ip', [])
-        if isinstance(ips, str): ips = [ips]
-        
-        if '0.0.0.0/0' in ips or '::/0' in ips:
-            is_catch_all = True
-        elif not r.get('domain') and not ips and not r.get('port'):
-            is_catch_all = True
-
         if t in w_tags:
-            w_rt = True
-            if is_catch_all: all_hit_warp = True
+            w_rt = True; break
+        # 简单判定：如果有全路由规则且不是 WARP
+        if not r.get('domain') and (not r.get('ip') or '0.0.0.0/0' in r.get('ip')):
             break
-        elif is_catch_all:
-            break
+    if not w_rt and default_outbound in w_tags:
+        w_rt = True
 
-    if w_rt or (not all_hit_warp and default_outbound in w_tags):
-        print('WARP')
-    else:
-        print('DIRECT')
+print('WARP' if w_rt else 'DIRECT')
 " 2>/dev/null)
 
         if [ "$result" == "WARP" ]; then
