@@ -1,14 +1,87 @@
-# VPS 基础信息与测试工具箱 - 一键检测 VPS 硬件、网络、IP 画像及运行各类测试脚本
+# vps_info
 
-## 核心特色
+VPS 基础信息与测试工具箱 - 一键检测 VPS 硬件配额、网络质量、IP 画像及运行各类测试脚本
 
-- ✅ 一键检测 VPS 硬件与内核协议栈
-- ✅ 双栈网络质量与抖动分析
-- ✅ 进程出站分流审计（支持 Xray/Sing-box 配置文件深度解析）
-- ✅ IP 深度画像报告（IPv4/IPv6）
-- ✅ 集成 14+ 款测试脚本（融合怪、流媒体解锁、三网测速、性能测试等）
-- ⚠️ 首次运行自动配置 `vps` 快捷键（需 root 权限）
+## 能检测的内容
+
+### 1. 虚拟化与环境鉴定
+- 操作系统类型 (Linux/FreeBSD/Darwin)
+- 运行环境识别：KVM、Docker、LXC/OpenVZ、Modal Serverless (gVisor)、甲骨文云 OCI、Serv00/CT8 等共享主机
+
+### 2. 硬件配额与内核审计
+- **CPU**：型号、核心数、CPU 配额 (Cgroup v1/v2 限制识别)
+- **内存**：物理总量、内存配额 (Cgroup 限制识别)
+- **磁盘**：总空间、实际已用、动态虚拟存储识别
+- **拥塞算法**：BBR、Cubic、Reno、Hybla、Westwood 等
+
+### 3. 进程出站分流审计
+自动检测 Xray/Sing-box 配置文件，精准判断：
+- 是否有 WARP/WireGuard 出站
+- 路由规则是否真正生效
+- 流量是被直连还是代理
+
+### 4. IP 深度画像报告
+- **IPv4 网络**：出口地址、地理位置、ISP、IP 类型 (IDC/住宅)、风控等级
+- **IPv6 网络**：出口地址、地理位置、ISP、IP 类型
+
+### 5. 测试脚本合集（13款）
+
+| 分类 | 测试脚本 |
+|:---|:---|
+| IP及解锁 | ChatGPT解锁、Region流媒体、yeahwu、xykt_IP质量 |
+| 网络线路 | Superspeed三网测速、nxtrace、ludashi2020、mtr_trace、besttrace |
+| 硬件性能 | icu/gb5 CPU测试 |
+| 综合性 | bench、融合怪、Speedtest |
+
+---
+
+## 使用方法
 
 ```bash
+# 方式一：在线直接运行
 bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)
+
+# 方式二：下载后运行
+curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh -o vps_info.sh
+chmod +x vps_info.sh
+./vps_info.sh
+
+# 方式三：使用快捷键（首次运行后生效）
+vps
 ```
+
+---
+
+## 功能特性
+
+- ✅ 首次运行自动配置 `vps` 快捷键（需 root）
+- ✅ 自动检测并安装缺失依赖
+- ✅ 支持全平台：Linux、FreeBSD、WSL
+- ✅ 精准路由审计：深度解析 JSON 配置，不只看表面
+- ✅ Cgroup 配额识别：准确识别受限制的容器资源
+
+---
+
+## 常见问题
+
+### Q1: 输入 `vps` 提示找不到命令？
+
+**解决**：重新运行一次 `bash vps_info.sh`，脚本会自动修复快捷键。
+
+### Q2: 进程审计显示直连，但我明明配了 WARP？
+
+**原因**：脚本深度检查路由规则，可能是直连规则捷足先登。
+
+**解决**：检查配置文件中的规则顺序，确保 WARP 规则在直连之前。
+
+---
+
+## 更新日志
+
+- **2026-04-09**：新增虚拟化环境深度鉴定、Cgroup 配额识别、FreeBSD 支持
+- **2026-04-04**：新增快捷键 `vps`、环境依赖自动安装、集成 ssh_tool 测试脚本合集
+
+---
+
+**作者**：zv201413  
+**项目地址**：https://github.com/zv201413/info
