@@ -31,19 +31,17 @@ print_row() {
     local margin=$(( (LINE_W - block_w) / 2 - 2 ))
     local l_padding=$((col1_fixed_w - left_w))
     
-    local l_spaces=""
-    for ((i=0; i<l_padding; i++)); do l_spaces+=" "; done
-    local gap_spaces=""
-    for ((i=0; i<gap; i++)); do gap_spaces+=" "; done
+    local l_spaces=$(printf '%*s' $l_padding)
+    local gap_spaces=$(printf '%*s' $gap)
     
-    printf "%${margin}s%s%s%s%s\n" "" "$left" "$l_spaces" "$gap_spaces" "$right"
+    echo -e "$(printf '%*s' $margin)$left$l_spaces$gap_spaces$right"
 }
 
 print_center() {
     local text="$1"
     local text_w=$(get_w "$text")
     local margin=$(( (LINE_W - text_w) / 2 - 1 ))
-    printf "%${margin}s%s\n" "" "$text"
+    echo -e "$(printf '%*s' $margin)$text"
 }
 
 # --- 辅助函数：获取精简数据 ---
@@ -162,8 +160,8 @@ fi
 
 clear
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e "  🛡️  VPS 基础信息与测试工具箱"
-echo -e "  ${SHORTCUT_MSG}"
+print_center "🛡️  VPS 基础信息与测试工具箱"
+print_center "${SHORTCUT_MSG}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 虚拟化与环境深度鉴定 ---
