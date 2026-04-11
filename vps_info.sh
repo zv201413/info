@@ -9,6 +9,38 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
+# --- 延迟抖动深度检测函数 ---
+check_jitter() {
+    local target=$1
+    local name=$2
+    echo -ne " ${BLUE}»${PLAIN} 正在测试 ${CYAN}$name${PLAIN} ($target) 的稳定性... "
+
+    # 发送 15 个快速 Ping 包 (0.2s 间隔) 获取统计数据
+    # mdev 代表 Mean Deviation (平均偏差)，是衡量 Jitter 的核心指标
+    local stats=$(ping -c 15 -i 0.2 -q "$target" 2>/dev/null)
+    
+    if [ -z "$stats" ]; then
+        echo -e "${RED}连接失败 (Timeout/Unreachable)${PLAIN}"
+        return
+    fi
+
+    # 提取平均延迟 (avg) 和 抖动 (mdev)
+    local result=$(echo "$stats" | tail -n 1 | awk -F '/' '{print $5,$7}' | awk '{print $1,$2}')
+    local avg_lat=$(echo $result | cut -d' ' -f1)
+    local jitter=$(echo $result | cut -d' ' -f2)
+
+    if [ -z "$jitter" ]; then
+        echo -e "${RED}无法计算指标${PLAIN}"
+    else
+        # 抖动着色逻辑
+        local j_color=$GREEN
+        if [ "$(echo "$jitter > 15" | bc 2>/dev/null)" -eq 1 ]; then j_color=$YELLOW; fi
+        if [ "$(echo "$jitter > 40" | bc 2>/dev/null)" -eq 1 ]; then j_color=$RED; fi
+
+        echo -e "延迟: ${CYAN}${avg_lat}ms${PLAIN} | 抖动: ${j_color}${jitter}ms${PLAIN}"
+    fi
+}
+
 # --- 环境依赖检查与安装 ---
 check_and_install_deps() {
     local missing_deps=()
@@ -23,25 +55,22 @@ check_and_install_deps() {
     elif command -v dnf &> /dev/null; then
         install_cmd="dnf install -y"
     else
-        echo -e "${YELLOW}⚠️  未检测到支持的包管理器，请手动安装以下依赖: curl, python3, iputils-ping, dnsutils${PLAIN}"
+        echo -e "${YELLOW}⚠️  未检测到支持的包管理器，请手动安装以下依赖: curl, python3, iputils-ping, bc${PLAIN}"
         return 1
     fi
     
-    for cmd in curl python3 ping; do
+    # 增加 bc 计算器依赖，用于浮点数比较
+    for cmd in curl python3 ping bc; do
         if ! command -v "$cmd" &> /dev/null; then
             missing_deps+=("$cmd")
         fi
     done
     
-    if ! command -v ip &> /dev/null && ! command -v ifconfig &> /dev/null; then
-        missing_deps+=("iputils-ping")
-    fi
-    
     if [ ${#missing_deps[@]} -gt 0 ]; then
         echo -e "${YELLOW}⚠️  检测到缺失依赖: ${missing_deps[*]}${PLAIN}"
         echo -e "${CYAN}正在尝试安装...${PLAIN}"
         [ -x "$(command -v apt-get)" ] && apt-get update -qq >/dev/null 2>&1
-        $install_cmd curl python3 iputils-ping dnsutils >/dev/null 2>&1 || $install_cmd curl python3 iputils-ping >/dev/null 2>&1
+        $install_cmd curl python3 iputils-ping bc dnsutils >/dev/null 2>&1 || $install_cmd curl python3 iputils-ping bc >/dev/null 2>&1
     fi
 }
 check_and_install_deps
@@ -128,12 +157,26 @@ fi
 echo -e "环境类型: ${GREEN}$virt_result${PLAIN}"
 echo -e "----------------------------------------------------------------"
 
+# --- 网络稳定性分析 (新增逻辑) ---
+echo -e "${YELLOW}[网络协议栈稳定性审计]${PLAIN}"
+# 1. 检测网关 (判断 VPS 宿主机本身的抖动)
+gw_ip=$(ip route 2>/dev/null | grep default | awk '{print $3}' | head -n 1)
+if [ -n "$gw_ip" ]; then
+    check_jitter "$gw_ip" "宿主机网关"
+fi
+# 2. 检测 Cloudflare (衡量国际互联质量)
+check_jitter "1.1.1.1" "Cloudflare (Anycast)"
+# 3. 检测 Google (衡量美西/国际出口)
+check_jitter "8.8.8.8" "Google DNS"
+echo -e "----------------------------------------------------------------"
+
 # 1. 基础硬件与内核协议栈
 echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
 
 # 获取 CPU 型号
 cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
 [ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
+echo -e "CPU 型号: ${CYAN}$cpu_model${PLAIN}"
 
 # --- CPU 配额审计逻辑 ---
 if [ "$os_type" = "FreeBSD" ]; then
@@ -143,15 +186,12 @@ else
     nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
     limit_cores=""
 
-    # 尝试 Cgroup v2
     if [ -f /sys/fs/cgroup/cpu.max ]; then
         read -r q p < /sys/fs/cgroup/cpu.max
         if [ "$q" != "max" ] && [ "$p" -ne 0 ]; then
             limit_cores=$(awk "BEGIN {printf \"%.1f\", $q / $p}")
         fi
     fi
-
-    # 尝试 Cgroup v1
     if [ -z "$limit_cores" ] && [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
         q_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
         p_v1=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
@@ -169,22 +209,21 @@ else
         display_cores="${nproc_usable} Core(s)"
     fi
 fi
+echo -e "核心配额: ${GREEN}$display_cores${PLAIN}"
 
 # --- 内存深度审计逻辑 ---
-get_memory_info() {
-    if [ "$os_type" = "FreeBSD" ]; then
-        echo -e "内存限制: ${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
+if [ "$os_type" = "FreeBSD" ]; then
+    echo -e "内存限制: ${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
+else
+    mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
+    if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
+        true_mem=$((mem_limit_bytes / 1024 / 1024))
+        echo -e "内存限制: ${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
     else
-        local mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
-        if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
-            local true_mem=$((mem_limit_bytes / 1024 / 1024))
-            echo -e "内存限制: ${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
-        else
-            local total_mem=$(free -m | awk '/Mem:/ {print $2}')
-            echo -e "内存总量: ${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
-        fi
+        total_mem=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
+        echo -e "内存总量: ${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
     fi
-}
+fi
 
 # --- 存储审计逻辑 (解决总量虚假问题) ---
 get_rom_info() {
