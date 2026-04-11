@@ -9,9 +9,16 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 辅助函数：左右对齐输出 ---
+# --- 辅助函数：两列对齐输出 (eooc.sh风格 - 大间距) ---
 print_double_col() {
-    printf " %-34b | %-34b\n" "$1" "$2"
+    # 使用更大的列宽和间距，模仿eooc.sh的手动空格对齐
+    printf "%-28b %-28b\n" "$1" "$2"
+    printf "%-28b %-28b\n" "$3" "$4"
+}
+
+# 简化版两列输出 (4行菜单用)
+print_2col() {
+    printf "%-28s %s\n" "$1" "$2"
 }
 
 # --- 辅助函数：获取精简数据 ---
@@ -276,21 +283,16 @@ case "$tcp_cc" in
     *) cc_status="${YELLOW}${tcp_cc:-"?"}${PLAIN}" ;;
 esac
 
-echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
-cpu_info="${CYAN}CPU: ${PLAIN}${cpu_model:-"未知"}"
-os_info="${CYAN}系统: ${PLAIN}${os_type}"
-core_info="${CYAN}核心: ${PLAIN}${display_cores}"
-virt_info="${CYAN}虚拟: ${PLAIN}${virt_result}"
-mem_line="${CYAN}内存: ${PLAIN}${mem_info}"
-up_info="${CYAN}运行: ${PLAIN}$(get_uptime_simple)"
-disk_info="${CYAN}磁盘: ${PLAIN}$(get_rom_info)"
-tcp_info="${CYAN}拥塞: ${PLAIN}${cc_status}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "              ${GREEN}▶ 硬件配额与系统状态${PLAIN}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
-print_double_col "$cpu_info" "$os_info"
-print_double_col "$core_info" "$virt_info"
-print_double_col "$mem_line" "$up_info"
-print_double_col "$disk_info" "$tcp_info"
-echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
+print_double_col "${CYAN}CPU型号${PLAIN}" "${GREEN}$cpu_model${PLAIN}" "${CYAN}系统版本${PLAIN}" "${GREEN}$os_type${PLAIN}"
+print_double_col "${CYAN}CPU核心${PLAIN}" "${GREEN}$display_cores${PLAIN}" "${CYAN}虚拟化${PLAIN}" "${GREEN}$virt_result${PLAIN}"
+print_double_col "${CYAN}运行时间${PLAIN}" "${GREEN}$(get_uptime_simple)${PLAIN}" "${CYAN}拥塞算法${PLAIN}" "${GREEN}$cc_status${PLAIN}"
+print_double_col "${CYAN}内存状态${PLAIN}" "${GREEN}$(get_mem_simple)${PLAIN}" "${CYAN}磁盘使用${PLAIN}" "${GREEN}$(df -h . | awk 'NR==2 {print $3"/"$2}')${PLAIN}"
+
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 3. 进程审计 (增强版容错逻辑) ---
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
@@ -427,24 +429,27 @@ get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e "${YELLOW}[测试脚本合集]${PLAIN}"
-echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e " ${GREEN}▶ 测试脚本合集${PLAIN}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
-up_sec=$(cat /proc/uptime | awk '{print $1}')
-up_info="${YELLOW}运行: ${PLAIN}$(get_uptime_simple)"
+up_info="${GREEN}运行: ${PLAIN}$(get_uptime_simple)"
 
-echo -e "${GREEN}---- IP及解锁状态检测 -------${PLAIN}"
-print_double_col "${GREEN}1. ChatGPT解锁状态检测${PLAIN}" "${GREEN}2. Region流媒体解锁测试${PLAIN}"
-print_double_col "${GREEN}3. yeahwu流媒体解锁检测${PLAIN}" "${GREEN}4. xykt_IP质量体检脚本${PLAIN}"
-echo -e "${CYAN}---- 网络线路测速 -----------${PLAIN}"
-print_double_col "${CYAN}5. Superspeed三网测速${PLAIN}" "${CYAN}6. nxtrace快速回程测试${PLAIN}"
-print_double_col "${CYAN}7. ludashi2020三网线路测试${PLAIN}" "${CYAN}8. mtr_trace三网回程线路测试${PLAIN}"
-print_double_col "${CYAN}9. besttrace三网回程延迟路由测试${PLAIN}" "${CYAN}13. Speedtest-CLI${PLAIN}"
-echo -e "${PURPLE}---- 综合性测试 -------------${PLAIN}"
-print_double_col "${PURPLE}10. GB5 CPU性能测试${PLAIN}" "${PURPLE}11. Bench性能测试${PLAIN}"
-print_double_col "${PURPLE}12. 融合怪大测评${PLAIN}" "${RED}0. 退出脚本${PLAIN}"
-echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
-print_double_col "$up_info" "${CYAN}Github: zv201413/info${PLAIN}"
+echo -e "${GREEN}▸ IP及解锁状态${PLAIN}"
+echo -e "${GREEN} 1. ChatGPT解锁检测                     2. Region流媒体测试${PLAIN}"
+echo -e "${GREEN} 3. yeahwu流媒体检测               4. xykt_IP质量体检${PLAIN}"
+
+echo -e "${CYAN}▸ 网络测速${PLAIN}"
+echo -e "${CYAN} 5. Superspeed三网测速               6. nxtrace回程测试${PLAIN}"
+echo -e "${CYAN} 7. ludashi2020线路测试             8. mtr_trace回程测试${PLAIN}"
+echo -e "${CYAN} 9. besttrace路由测试             13. Speedtest-CLI测速${PLAIN}"
+
+echo -e "${PURPLE}▸ 性能测试${PLAIN}"
+echo -e "${PURPLE}10. GB5 CPU性能测试               11. Bench性能测试${PLAIN}"
+echo -e "${PURPLE}12. 融合怪大测评                  ${RED} 0. 退出脚本${PLAIN}"
+
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e " ${YELLOW}当前状态${PLAIN}  ${up_info}  |  ${CYAN}Github: zv201413/info${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
 read -p "请输入数字选择: " test_choice
