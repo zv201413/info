@@ -32,7 +32,7 @@ print_menu_item() {
     local left="$1"
     local right="$2"
     
-    local margin=22
+    local margin=13
     local col1_w=28
     local gap=4
     
@@ -206,7 +206,7 @@ fi
 
 echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
 print_menu_item "${CYAN}操作系统: ${os_type}" "${GREEN}环境类型: ${virt_result}"
-echo -e "-----------------------------------------------------------------------"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 网络稳定性分析 (新增逻辑) ---
 echo -e "${YELLOW}[网络协议栈稳定性审计]${PLAIN}"
@@ -219,7 +219,7 @@ fi
 check_jitter "1.1.1.1" "Cloudflare (Anycast)"
 # 3. 检测 Google (衡量美西/国际出口)
 check_jitter "8.8.8.8" "Google DNS"
-echo -e "-----------------------------------------------------------------------"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # 1. 基础硬件与内核协议栈
 echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
@@ -421,7 +421,7 @@ x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' 
 [ -n "$x_path" ] && audit_config "Xray" "$x_path"
 s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
-echo -e "-----------------------------------------------------------------------"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # 4. IP 深度画像
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
