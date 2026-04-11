@@ -9,39 +9,42 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 核心对齐引擎 (居中布局) ---
-LINE_W=92
+# --- 核心对齐引擎 (简化版) ---
+WIDTH=92
 
-get_w() {
-    python3 -c "
+get_width() {
+    python3 -c '
 import sys, re
-s = re.sub(r'\x1b\[[0-9;]*m', '', sys.argv[1])
-print(sum(2 if ord(c) > 127 else 1 for c in s))" "$1"
-}
-
-print_row() {
-    local left="$1" right="$2"
-    local col1_fixed_w=25
-    local gap=6
-    
-    local left_w=$(get_w "$left")
-    local right_w=$(get_w "$right")
-    
-    local block_w=$((col1_fixed_w + gap + right_w))
-    local margin=$(( (LINE_W - block_w) / 2 - 2 ))
-    local l_padding=$((col1_fixed_w - left_w))
-    
-    local l_spaces=$(printf '%*s' $l_padding)
-    local gap_spaces=$(printf '%*s' $gap)
-    
-    echo -e "$(printf '%*s' $margin)$left$l_spaces$gap_spaces$right"
+s = re.sub(r"(\\033|\\e|\\x1b|\x1b)\[[0-9;]*[a-zA-Z]", "", sys.argv[1])
+print(sum(2 if ord(c) > 127 else 1 for c in s))
+' "$1"
 }
 
 print_center() {
     local text="$1"
-    local text_w=$(get_w "$text")
-    local margin=$(( (LINE_W - text_w) / 2 - 1 ))
-    echo -e "$(printf '%*s' $margin)$text"
+    local w=$(get_width "$text")
+    local margin=$(( (WIDTH - w) / 2 ))
+    [ $margin -lt 0 ] && margin=0
+    printf "%${margin}s%b\n" "" "$text"
+}
+
+print_menu_item() {
+    local left="$1"
+    local right="$2"
+    
+    local margin=22
+    local col1_w=28
+    local gap=4
+    
+    local left_w=$(get_width "$left")
+    local pad=$((col1_w - left_w))
+    [ $pad -lt 0 ] && pad=0
+    
+    local padding_spaces=$(printf "%${pad}s" "")
+    local margin_spaces=$(printf "%${margin}s" "")
+    local gap_spaces=$(printf "%${gap}s" "")
+
+    echo -e "${margin_spaces}${left}${padding_spaces}${gap_spaces}${right}"
 }
 
 # --- 辅助函数：获取精简数据 ---
@@ -202,7 +205,7 @@ else
 fi
 
 echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
-print_row "${CYAN}操作系统: ${os_type}" "${GREEN}环境类型: ${virt_result}"
+print_menu_item "${CYAN}操作系统: ${os_type}" "${GREEN}环境类型: ${virt_result}"
 echo -e "-----------------------------------------------------------------------"
 
 # --- 网络稳定性分析 (新增逻辑) ---
@@ -309,9 +312,9 @@ echo -e "${BLUE}═════════════════════�
 print_center "${GREEN}▶ 硬件配额与系统状态${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
-print_row "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
-print_row "${CYAN}CPU核心: ${display_cores}" "${CYAN}虚拟化: ${virt_result}"
-print_row "${CYAN}SSD存储: $(df -h . | awk 'NR==2 {print $3"/"$2}')" "${CYAN}IP地址: $(curl -s -4 ip.sb)"
+print_menu_item "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
+print_menu_item "${CYAN}CPU核心: ${display_cores}" "${CYAN}虚拟化: ${virt_result}"
+print_menu_item "${CYAN}SSD存储: $(df -h . | awk 'NR==2 {print $3"/"$2}')" "${CYAN}IP地址: $(curl -s -4 ip.sb)"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
@@ -455,17 +458,17 @@ print_center "${GREEN}▶ 测试脚本合集${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 echo -e "${GREEN}▸ IP及解锁状态${PLAIN}"
-print_row "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试"
-print_row "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
+print_menu_item "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试"
+print_menu_item "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
 
 echo -e "${CYAN}▸ 网络测速${PLAIN}"
-print_row "${CYAN}5. Superspeed三网测速" "${CYAN}6. nxtrace回程测试"
-print_row "${CYAN}7. ludashi2020线路测试" "${CYAN}8. mtr_trace回程测试"
-print_row "${CYAN}9. besttrace路由测试" "${CYAN}13. Speedtest-CLI测速"
+print_menu_item "${CYAN}5. Superspeed三网测速" "${CYAN}6. nxtrace回程测试"
+print_menu_item "${CYAN}7. ludashi2020线路测试" "${CYAN}8. mtr_trace回程测试"
+print_menu_item "${CYAN}9. besttrace路由测试" "${CYAN}13. Speedtest-CLI测速"
 
 echo -e "${PURPLE}▸ 性能测试${PLAIN}"
-print_row "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试"
-print_row "${PURPLE}12. 融合怪大测评" " "
+print_menu_item "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试"
+print_menu_item "${PURPLE}12. 融合怪大测评" " "
 echo -e "${RED}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
