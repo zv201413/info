@@ -469,3 +469,14 @@ case "$test_choice" in
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
+# --- 结尾显示运行时间 ---
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+up_sec=$(cat /proc/uptime | awk '{print $1}')
+echo -ne "${YELLOW}系统运行状态: ${PLAIN}"
+awk -v total=$up_sec 'BEGIN {
+    d=int(total/86400); 
+    h=int((total%86400)/3600); 
+    m=int((total%3600)/60); 
+    printf "\033[0;32m%d天 %d小时 %d分钟\033[0m\n", d, h, m
+}'
+echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
