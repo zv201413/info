@@ -9,22 +9,14 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 核心对齐引擎 (Python版) ---
+# --- 核心对齐引擎 (列宽34) ---
 print_row() {
-    python3 -c "
-import sys, re
-import os
-
-def get_w(s):
-    clean = re.sub(r'\x1b\[[0-9;]*m', '', s)
-    return sum(2 if ord(c) > 127 else 1 for c in clean)
-
-left = sys.argv[1]
-right = sys.argv[2] if len(sys.argv) > 2 else ''
-col_w = 31
-padding = ' ' * (col_w - get_w(left))
-print(f'{left}{padding} |  {right}')
-" "$1" "$2" 2>/dev/null || echo "$1 | $2"
+    local left="$1" right="$2"
+    local w=$(echo -e "$left" | sed 's/\x1b\[[0-9;]*m//g' | awk '{print length}')
+    local pad=$((34 - w))
+    local spaces=""
+    for ((i=0; i<pad; i++)); do spaces+=" "; done
+    echo -e "${left}${spaces}| ${right}"
 }
 
 # --- 辅助函数：获取精简数据 ---
@@ -142,10 +134,10 @@ else
 fi
 
 clear
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "  🛡️  VPS 基础信息与测试工具箱"
 echo -e "  ${SHORTCUT_MSG}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 虚拟化与环境深度鉴定 ---
 os_type=$(uname -s)
@@ -185,8 +177,8 @@ else
 fi
 
 echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
-print_row "${CYAN}操作系统${PLAIN} ${os_type}" "${GREEN}环境类型${PLAIN} ${virt_result}"
-echo -e "----------------------------------------------------------------"
+print_row "${CYAN}操作系统: ${os_type}" "${GREEN}环境类型: ${virt_result}"
+echo -e "-----------------------------------------------------------------------"
 
 # --- 网络稳定性分析 (新增逻辑) ---
 echo -e "${YELLOW}[网络协议栈稳定性审计]${PLAIN}"
@@ -199,7 +191,7 @@ fi
 check_jitter "1.1.1.1" "Cloudflare (Anycast)"
 # 3. 检测 Google (衡量美西/国际出口)
 check_jitter "8.8.8.8" "Google DNS"
-echo -e "----------------------------------------------------------------"
+echo -e "-----------------------------------------------------------------------"
 
 # 1. 基础硬件与内核协议栈
 echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
@@ -288,16 +280,16 @@ case "$tcp_cc" in
     *) cc_status="${YELLOW}${tcp_cc:-"?"}${PLAIN}" ;;
 esac
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "              ${GREEN}▶ 硬件配额与系统状态${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 
-print_row "${CYAN}CPU型号${PLAIN} ${cpu_model:-未知}" "${CYAN}系统版本${PLAIN} ${os_type}"
-print_row "${CYAN}CPU核心${PLAIN} ${display_cores}" "${CYAN}虚拟化${PLAIN} ${virt_result}"
-print_row "${CYAN}运行时间${PLAIN} $(get_uptime_simple)" "${CYAN}拥塞算法${PLAIN} ${cc_status}"
-print_row "${CYAN}SSD存储${PLAIN} $(df -h . | awk 'NR==2 {print $3"/"$2}')" "${CYAN}IP地址${PLAIN} $(curl -s -4 ip.sb)"
+print_row "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
+print_row "${CYAN}CPU核心: ${display_cores}" "${CYAN}虚拟化: ${virt_result}"
+print_row "${CYAN}运行时间: $(get_uptime_simple)" "${CYAN}拥塞算法: ${cc_status}"
+print_row "${CYAN}SSD存储: $(df -h . | awk 'NR==2 {print $3"/"$2}')" "${CYAN}IP地址: $(curl -s -4 ip.sb)"
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 3. 进程审计 (增强版容错逻辑) ---
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
@@ -402,7 +394,7 @@ x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' 
 [ -n "$x_path" ] && audit_config "Xray" "$x_path"
 s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
-echo -e "----------------------------------------------------------------"
+echo -e "-----------------------------------------------------------------------"
 
 # 4. IP 深度画像
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
@@ -433,28 +425,28 @@ get_ip_info() {
 get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e " ${GREEN}▶ 测试脚本合集${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 
 echo -e "${GREEN}▸ IP及解锁状态${PLAIN}"
-print_row "${GREEN} 1. ChatGPT解锁检测" "${GREEN} 2. Region流媒体测试"
-print_row "${GREEN} 3. yeahwu流媒体检测" "${GREEN} 4. xykt_IP质量体检"
+print_row "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试"
+print_row "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
 
 echo -e "${CYAN}▸ 网络测速${PLAIN}"
-print_row "${CYAN} 5. Superspeed三网测速" "${CYAN} 6. nxtrace回程测试"
-print_row "${CYAN} 7. ludashi2020线路测试" "${CYAN} 8. mtr_trace回程测试"
-print_row "${CYAN} 9. besttrace路由测试" "${CYAN}13. Speedtest-CLI测速"
+print_row "${CYAN}5. Superspeed三网测速" "${CYAN}6. nxtrace回程测试"
+print_row "${CYAN}7. ludashi2020线路测试" "${CYAN}8. mtr_trace回程测试"
+print_row "${CYAN}9. besttrace路由测试" "${CYAN}13. Speedtest-CLI测速"
 
 echo -e "${PURPLE}▸ 性能测试${PLAIN}"
 print_row "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试"
-print_row "${PURPLE}12. 融合怪大测评" ""
-echo -e "${RED} 0. 退出脚本${PLAIN}"
+print_row "${PURPLE}12. 融合怪大测评" " "
+echo -e "${RED}0. 退出脚本${PLAIN}"
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e " ${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════${PLAIN}"
 
 read -p "请输入数字选择: " test_choice
 
