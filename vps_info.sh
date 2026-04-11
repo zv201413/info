@@ -250,7 +250,20 @@ get_rom_info() {
 
 # 输出硬件信息
 echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores})"
-get_memory_info
+get_memory_info() {
+    if [ "$os_type" = "FreeBSD" ]; then
+        echo -e "内存限制: ${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
+    else
+        local mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
+        if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
+            local true_mem=$((mem_limit_bytes / 1024 / 1024))
+            echo -e "内存限制: ${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
+        else
+            local total_mem=$(free -m | awk '/Mem:/ {print $2}')
+            echo -e "内存总量: ${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
+        fi
+    fi
+}
 get_rom_info
 
 # --- 拥塞算法探测 ---
