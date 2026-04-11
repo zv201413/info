@@ -9,20 +9,22 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 核心对齐引擎 (表格风格) ---
-get_width() {
-    local clean_str=$(echo -e "$1" | sed 's/\x1b\[[0-9;]*m//g')
-    python3 -c "import sys; import re; s = re.sub(r'\x1b\[[0-9;]*m', '', sys.argv[1]); print(sum(2 if ord(c) > 127 else 1 for c in s))" "$1" 2>/dev/null || echo "$1" | wc -L
-}
-
+# --- 核心对齐引擎 (Python版) ---
 print_row() {
-    local left="$1"; local right="$2"
-    local col_w=28
-    local curr_w=$(get_width "$left")
-    local pad=$((col_w - curr_w))
-    local spaces=""
-    for ((i=0; i<pad; i++)); do spaces+=" "; done
-    echo -e "${left}${spaces}| ${right}"
+    python3 -c "
+import sys, re
+import os
+
+def get_w(s):
+    clean = re.sub(r'\x1b\[[0-9;]*m', '', s)
+    return sum(2 if ord(c) > 127 else 1 for c in clean)
+
+left = sys.argv[1]
+right = sys.argv[2] if len(sys.argv) > 2 else ''
+col_w = 31
+padding = ' ' * (col_w - get_w(left))
+print(f'{left}{padding} |  {right}')
+" "$1" "$2" 2>/dev/null || echo "$1 | $2"
 }
 
 # --- 辅助函数：获取精简数据 ---
@@ -290,9 +292,10 @@ echo -e "${BLUE}═════════════════════�
 echo -e "              ${GREEN}▶ 硬件配额与系统状态${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
-print_row "${CYAN}CPU型号${PLAIN} ${cpu_model:-未知}" "${CYAN}CPU核心${PLAIN} ${display_cores}"
-print_row "${CYAN}虚拟化${PLAIN} ${virt_result}" "${CYAN}拥塞算法${PLAIN} ${cc_status}"
-print_row "${CYAN}内存状态${PLAIN} $(get_mem_simple)" "${CYAN}磁盘使用${PLAIN} $(df -h . | awk 'NR==2 {print $3"/"$2}')"
+print_row "${CYAN}CPU型号${PLAIN} ${cpu_model:-未知}" "${CYAN}系统版本${PLAIN} ${os_type}"
+print_row "${CYAN}CPU核心${PLAIN} ${display_cores}" "${CYAN}虚拟化${PLAIN} ${virt_result}"
+print_row "${CYAN}运行时间${PLAIN} $(get_uptime_simple)" "${CYAN}拥塞算法${PLAIN} ${cc_status}"
+print_row "${CYAN}SSD存储${PLAIN} $(df -h . | awk 'NR==2 {print $3"/"$2}')" "${CYAN}IP地址${PLAIN} $(curl -s -4 ip.sb)"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 
@@ -446,7 +449,8 @@ print_row "${CYAN} 9. besttrace路由测试" "${CYAN}13. Speedtest-CLI测速"
 
 echo -e "${PURPLE}▸ 性能测试${PLAIN}"
 print_row "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试"
-print_row "${PURPLE}12. 融合怪大测评" "${RED} 0. 退出脚本"
+print_row "${PURPLE}12. 融合怪大测评" ""
+echo -e "${RED} 0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e " ${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
