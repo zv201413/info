@@ -28,7 +28,7 @@ print_row() {
     local right_w=$(get_w "$right")
     
     local block_w=$((col1_fixed_w + gap + right_w))
-    local margin=$(( (LINE_W - block_w) // 2 - 2 ))
+    local margin=$(( (LINE_W - block_w) / 2 - 2 ))
     local l_padding=$((col1_fixed_w - left_w))
     
     local l_spaces=""
@@ -42,7 +42,7 @@ print_row() {
 print_center() {
     local text="$1"
     local text_w=$(get_w "$text")
-    local margin=$(( (LINE_W - text_w) // 2 - 1 ))
+    local margin=$(( (LINE_W - text_w) / 2 - 1 ))
     printf "%${margin}s%s\n" "" "$text"
 }
 
