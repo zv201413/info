@@ -9,21 +9,41 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
-# --- 核心对齐引擎 (支持中英混排) ---
-print_row() {
-    local left="$1" right="$2"
-    local col_width=34
-    
-    local visual_w=$(python3 -c "
+# --- 核心对齐引擎 (居中布局) ---
+LINE_W=92
+
+get_w() {
+    python3 -c "
 import sys, re
 s = re.sub(r'\x1b\[[0-9;]*m', '', sys.argv[1])
-print(sum(2 if ord(c) > 127 else 1 for c in s))" "$left")
+print(sum(2 if ord(c) > 127 else 1 for c in s))" "$1"
+}
+
+print_row() {
+    local left="$1" right="$2"
+    local col1_fixed_w=25
+    local gap=6
     
-    local pad=$((col_width - visual_w))
-    local spaces=""
-    for ((i=0; i<pad; i++)); do spaces+=" "; done
+    local left_w=$(get_w "$left")
+    local right_w=$(get_w "$right")
     
-    echo -e "${left}${spaces}${right}"
+    local block_w=$((col1_fixed_w + gap + right_w))
+    local margin=$(( (LINE_W - block_w) // 2 - 2 ))
+    local l_padding=$((col1_fixed_w - left_w))
+    
+    local l_spaces=""
+    for ((i=0; i<l_padding; i++)); do l_spaces+=" "; done
+    local gap_spaces=""
+    for ((i=0; i<gap; i++)); do gap_spaces+=" "; done
+    
+    printf "%${margin}s%s%s%s%s\n" "" "$left" "$l_spaces" "$gap_spaces" "$right"
+}
+
+print_center() {
+    local text="$1"
+    local text_w=$(get_w "$text")
+    local margin=$(( (LINE_W - text_w) // 2 - 1 ))
+    printf "%${margin}s%s\n" "" "$text"
 }
 
 # --- 辅助函数：获取精简数据 ---
@@ -288,7 +308,7 @@ case "$tcp_cc" in
 esac
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e "              ${GREEN}▶ 硬件配额与系统状态${PLAIN}"
+print_center "${GREEN}▶ 硬件配额与系统状态${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 print_row "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
@@ -433,7 +453,7 @@ get_ip_info "IPv6" "6"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e " ${GREEN}▶ 测试脚本合集${PLAIN}"
+print_center "${GREEN}▶ 测试脚本合集${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 echo -e "${GREEN}▸ IP及解锁状态${PLAIN}"
@@ -451,7 +471,7 @@ print_row "${PURPLE}12. 融合怪大测评" " "
 echo -e "${RED}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e " ${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
+print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 read -p "请输入数字选择: " test_choice
