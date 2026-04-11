@@ -208,36 +208,6 @@ echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
 print_menu_item "${CYAN}操作系统: ${os_type}" "${GREEN}环境类型: ${virt_result}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
-# --- 网络稳定性分析 (新增逻辑) ---
-echo -e "${YELLOW}[网络协议栈稳定性审计]${PLAIN}"
-
-# 0. 新增：检测 VPS 到你本地客户端的抖动 (通过 SSH 来源 IP)
-client_ip=$(echo $SSH_CLIENT | awk '{print $1}')
-
-# 2. 判断是否获取成功，若失败或有特殊需求，则进入手动流程
-if [ -z "$client_ip" ] || [[ "$client_ip" == "127.0.0.1" ]]; then
-    echo -e " ${YELLOW}»${PLAIN} 未检测到有效的 SSH 来源 IP。"
-    read -p " 请手动输入你的本地公网IP (直接回车跳过测试): " manual_ip
-    client_ip=$manual_ip
-fi
-
-# 3. 执行测试
-if [ -n "$client_ip" ]; then
-    check_jitter "$client_ip" "目标节点 (本地/手动)"
-else
-    echo -e " ${RED}»${PLAIN} 未提供有效 IP，跳过本地链路测试。"
-fi
-# 1. 检测网关 (判断 VPS 宿主机本身的抖动)
-gw_ip=$(ip route 2>/dev/null | grep default | awk '{print $3}' | head -n 1)
-if [ -n "$gw_ip" ]; then
-    check_jitter "$gw_ip" "宿主机网关"
-fi
-# 2. 检测 Cloudflare (衡量国际互联质量)
-check_jitter "1.1.1.1" "Cloudflare (Anycast)"
-# 3. 检测 Google (衡量美西/国际出口)
-check_jitter "8.8.8.8" "Google DNS"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-
 # 1. 基础硬件与内核协议栈
 echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
 
@@ -292,22 +262,26 @@ else
 fi
 
 # --- 存储审计逻辑 ---
-get_rom_info() {
+get_rom_info_detailed() {
     if [ "$os_type" = "FreeBSD" ]; then
-         local freebsd_quota=$(quota -uv $(whoami) 2>/dev/null | awk '/\/dev\// {printf "已用: %.2fMB | 限额: %.2fMB", $2/1024, $3/1024}')
-         if [ -n "$freebsd_quota" ]; then
-             echo "${CYAN}${freebsd_quota}${PLAIN}"
-         else
-             echo "${GREEN}$(df -h . | awk 'NR==2 {print $3"/"$2}')${PLAIN}"
-         fi
+        # FreeBSD 磁盘配额逻辑
+        local freebsd_quota=$(quota -uv $(whoami) 2>/dev/null | awk '/\/dev\// {printf "已用: %s | 限额: %s", $2, $3}')
+        if [ -n "$freebsd_quota" ]; then
+            echo "${CYAN}${freebsd_quota}${PLAIN}"
+        else
+            echo "${GREEN}$(df -h . | awk 'NR==2 {print $3" / "$2" ("$5")"}') ${PLAIN}"
+        fi
     else
+        # Linux 深度审计
         local rom_total_raw=$(df -m . | awk 'NR==2 {print $2}')
+        local rom_usage=$(df -h . | awk 'NR==2 {print $3" / "$2" ("$5")"}')
+        
+        # 逻辑：如果总容量异常大（如超过 500GB）且是容器环境，通常是共享/按需分配磁盘
         if [ "$rom_total_raw" -gt 512000 ]; then
             local home_used=$(du -sh $HOME 2>/dev/null | awk '{print $1}')
-            local tmp_used=$(du -sh /tmp 2>/dev/null | awk '{print $1}')
-            echo "${CYAN}动态虚拟存储 (按需分配)${PLAIN}"
+            echo "${CYAN}共享磁盘 (已用: ${home_used} | 挂载点: ${rom_usage})${PLAIN}"
         else
-            echo "${GREEN}$(df -h . | awk 'NR==2 {print $3"/"$2}')${PLAIN}"
+            echo "${GREEN}${rom_usage}${PLAIN}"
         fi
     fi
 }
@@ -331,7 +305,7 @@ echo -e "${BLUE}═════════════════════�
 
 print_menu_item "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
 print_menu_item "${CYAN}CPU核心: ${display_cores}" "${CYAN}虚拟化: ${virt_result}"
-print_menu_item "${CYAN}SSD存储: $(df -h . | awk 'NR==2 {print $3"/"$2}')" "${CYAN}IP地址: $(curl -s -4 ip.sb)"
+print_menu_item "${CYAN}存储状态: $(get_rom_info_detailed)" "${CYAN}IP地址: $(curl -s -4 ip.sb)"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
