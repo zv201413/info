@@ -9,6 +9,25 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
+# --- 辅助函数：左右对齐输出 ---
+print_double_col() {
+    printf " %-34b | %-34b\n" "$1" "$2"
+}
+
+# --- 辅助函数：获取精简数据 ---
+get_uptime_simple() {
+    awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%d天%d时%d分", d, h, m}' /proc/uptime
+}
+
+get_mem_simple() {
+    local mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
+    if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
+        echo "$((mem_limit_bytes / 1024 / 1024)) MB"
+    else
+        echo "$(free -m 2>/dev/null | awk '/Mem:/ {print $2}') MB"
+    fi
+}
+
 # --- 延迟抖动深度检测函数 ---
 check_jitter() {
     local target=$1
@@ -176,7 +195,6 @@ echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
 # 获取 CPU 型号
 cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
 [ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
-echo -e "CPU 型号: ${CYAN}$cpu_model${PLAIN}"
 
 # --- CPU 配额审计逻辑 ---
 if [ "$os_type" = "FreeBSD" ]; then
@@ -209,77 +227,70 @@ else
         display_cores="${nproc_usable} Core(s)"
     fi
 fi
-echo -e "核心配额: ${GREEN}$display_cores${PLAIN}"
 
 # --- 内存深度审计逻辑 ---
 if [ "$os_type" = "FreeBSD" ]; then
-    echo -e "内存限制: ${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
+    mem_info="${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
 else
     mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
     if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
         true_mem=$((mem_limit_bytes / 1024 / 1024))
-        echo -e "内存限制: ${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
+        mem_info="${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
     else
         total_mem=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
-        echo -e "内存总量: ${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
+        mem_info="${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
     fi
 fi
 
-# --- 存储审计逻辑 (解决总量虚假问题) ---
+# --- 存储审计逻辑 ---
 get_rom_info() {
     if [ "$os_type" = "FreeBSD" ]; then
-         # FreeBSD 下尝试探测 quota
          local freebsd_quota=$(quota -uv $(whoami) 2>/dev/null | awk '/\/dev\// {printf "已用: %.2fMB | 限额: %.2fMB", $2/1024, $3/1024}')
          if [ -n "$freebsd_quota" ]; then
-            echo -e "磁盘空间: ${CYAN}${freebsd_quota}${PLAIN}"
+             echo "${CYAN}${freebsd_quota}${PLAIN}"
          else
-            echo -e "磁盘空间: ${GREEN}$(df -h . | awk 'NR==2 {print $3}') / $(df -h . | awk 'NR==2 {print $2}')${PLAIN}"
+             echo "${GREEN}$(df -h . | awk 'NR==2 {print $3"/"$2}')${PLAIN}"
          fi
     else
         local rom_total_raw=$(df -m . | awk 'NR==2 {print $2}')
         if [ "$rom_total_raw" -gt 512000 ]; then
             local home_used=$(du -sh $HOME 2>/dev/null | awk '{print $1}')
             local tmp_used=$(du -sh /tmp 2>/dev/null | awk '{print $1}')
-            echo -e "磁盘空间: ${CYAN}动态虚拟存储 (按需分配)${PLAIN}"
-            echo -e "实际已用: ${GREEN}${home_used}${PLAIN} (家目录) / ${YELLOW}${tmp_used}${PLAIN} (临时目录)"
+            echo "${CYAN}动态虚拟存储 (按需分配)${PLAIN}"
         else
-            echo -e "磁盘空间: ${GREEN}$(df -h . | awk 'NR==2 {print $3}') / $(df -h . | awk 'NR==2 {print $2}')${PLAIN}"
+            echo "${GREEN}$(df -h . | awk 'NR==2 {print $3"/"$2}')${PLAIN}"
         fi
     fi
 }
 
-# 输出硬件信息
-echo -e "CPU: ${CYAN}${cpu_model:-"未知"}${PLAIN} (${display_cores})"
-get_memory_info() {
-    if [ "$os_type" = "FreeBSD" ]; then
-        echo -e "内存限制: ${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
-    else
-        local mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
-        if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
-            local true_mem=$((mem_limit_bytes / 1024 / 1024))
-            echo -e "内存限制: ${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
-        else
-            local total_mem=$(free -m | awk '/Mem:/ {print $2}')
-            echo -e "内存总量: ${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
-        fi
-    fi
-}
-get_rom_info
-
-# --- 拥塞算法探测 ---
+# 拥塞算法探测
 if command -v ss &> /dev/null; then
     tcp_cc=$(ss -ti | grep -oP '(?<= )(bbr|cubic|reno|hybla|westwood)(?= )' | head -n1)
 fi
 [ -z "$tcp_cc" ] && tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
 
 case "$tcp_cc" in
-    "bbr") cc_status="${GREEN}BBR (加速中)${PLAIN}" ;;
-    "cubic") cc_status="${CYAN}Cubic (标准)${PLAIN}" ;;
-    "reno") cc_status="${YELLOW}Reno (经典)${PLAIN}" ;;
-    *) cc_status="${YELLOW}${tcp_cc:-"无法探测"}${PLAIN}" ;;
+    "bbr") cc_status="${GREEN}BBR${PLAIN}" ;;
+    "cubic") cc_status="${CYAN}Cubic${PLAIN}" ;;
+    "reno") cc_status="${YELLOW}Reno${PLAIN}" ;;
+    *) cc_status="${YELLOW}${tcp_cc:-"?"}${PLAIN}" ;;
 esac
-echo -e "拥塞算法: $cc_status"
-echo -e "----------------------------------------------------------------"
+
+echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
+cpu_info="${CYAN}CPU: ${PLAIN}${cpu_model:-"未知"}"
+os_info="${CYAN}系统: ${PLAIN}${os_type}"
+core_info="${CYAN}核心: ${PLAIN}${display_cores}"
+virt_info="${CYAN}虚拟: ${PLAIN}${virt_result}"
+mem_line="${CYAN}内存: ${PLAIN}${mem_info}"
+up_info="${CYAN}运行: ${PLAIN}$(get_uptime_simple)"
+disk_info="${CYAN}磁盘: ${PLAIN}$(get_rom_info)"
+tcp_info="${CYAN}拥塞: ${PLAIN}${cc_status}"
+
+print_double_col "$cpu_info" "$os_info"
+print_double_col "$core_info" "$virt_info"
+print_double_col "$mem_line" "$up_info"
+print_double_col "$disk_info" "$tcp_info"
+echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
 
 # --- 3. 进程审计 (增强版容错逻辑) ---
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
@@ -415,29 +426,27 @@ get_ip_info() {
 get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
-# 5. 测试菜单
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
 echo -e "${YELLOW}[测试脚本合集]${PLAIN}"
+echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
+
+up_sec=$(cat /proc/uptime | awk '{print $1}')
+up_info="${YELLOW}运行: ${PLAIN}$(get_uptime_simple)"
+
 echo -e "${GREEN}---- IP及解锁状态检测 -------${PLAIN}"
-echo -e " 1. ChatGPT解锁状态检测"
-echo -e " 2. Region流媒体解锁测试"
-echo -e " 3. yeahwu流媒体解锁检测"
-echo -e " 4. xykt_IP质量体检脚本"
+print_double_col "${GREEN}1. ChatGPT解锁状态检测${PLAIN}" "${GREEN}2. Region流媒体解锁测试${PLAIN}"
+print_double_col "${GREEN}3. yeahwu流媒体解锁检测${PLAIN}" "${GREEN}4. xykt_IP质量体检脚本${PLAIN}"
 echo -e "${CYAN}---- 网络线路测速 -----------${PLAIN}"
-echo -e " 5. Superspeed三网测速"
-echo -e " 6. nxtrace快速回程测试"
-echo -e " 7. ludashi2020三网线路测试"
-echo -e " 8. mtr_trace三网回程线路测试"
-echo -e " 9. besttrace三网回程延迟路由测试"
-echo -e "${GREEN}---- 硬件性能测试 -----------${PLAIN}"
-echo -e "10. icu/gb5 CPU性能测试脚本"
+print_double_col "${CYAN}5. Superspeed三网测速${PLAIN}" "${CYAN}6. nxtrace快速回程测试${PLAIN}"
+print_double_col "${CYAN}7. ludashi2020三网线路测试${PLAIN}" "${CYAN}8. mtr_trace三网回程线路测试${PLAIN}"
+print_double_col "${CYAN}9. besttrace三网回程延迟路由测试${PLAIN}" "${CYAN}13. Speedtest-CLI${PLAIN}"
 echo -e "${PURPLE}---- 综合性测试 -------------${PLAIN}"
-echo -e "11. bench性能测试"
-echo -e "12. spiritysdx融合怪测评"
-echo -e "13. Speedtest 测速"
+print_double_col "${PURPLE}10. GB5 CPU性能测试${PLAIN}" "${PURPLE}11. Bench性能测试${PLAIN}"
+print_double_col "${PURPLE}12. 融合怪大测评${PLAIN}" "${RED}0. 退出脚本${PLAIN}"
+echo -e "${BLUE}----------------------------------------------------------------${PLAIN}"
+print_double_col "$up_info" "${CYAN}Github: zv201413/info${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-echo -e " 0. 退出脚本"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
+
 read -p "请输入数字选择: " test_choice
 
 case "$test_choice" in
@@ -469,14 +478,3 @@ case "$test_choice" in
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
-# --- 结尾显示运行时间 ---
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
-up_sec=$(cat /proc/uptime | awk '{print $1}')
-echo -ne "${YELLOW}系统运行状态: ${PLAIN}"
-awk -v total=$up_sec 'BEGIN {
-    d=int(total/86400); 
-    h=int((total%86400)/3600); 
-    m=int((total%3600)/60); 
-    printf "\033[0;32m%d天 %d小时 %d分钟\033[0m\n", d, h, m
-}'
-echo -e "${BLUE}════════════════════════════════════════════════════════════════${PLAIN}"
