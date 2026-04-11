@@ -305,7 +305,8 @@ echo -e "${BLUE}═════════════════════�
 
 print_menu_item "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
 print_menu_item "${CYAN}CPU核心: ${display_cores}" "${CYAN}虚拟化: ${virt_result}"
-print_menu_item "${CYAN}存储状态: $(get_rom_info_detailed)" "${CYAN}IP地址: $(curl -s -4 ip.sb)"
+print_menu_item "${CYAN}IP地址: $(curl -s -4 ip.sb)" " "
+print_menu_item "${CYAN}存储状态: $(get_rom_info_detailed)" " "
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
