@@ -210,6 +210,23 @@ echo -e "${BLUE}═════════════════════�
 
 # --- 网络稳定性分析 (新增逻辑) ---
 echo -e "${YELLOW}[网络协议栈稳定性审计]${PLAIN}"
+
+# 0. 新增：检测 VPS 到你本地客户端的抖动 (通过 SSH 来源 IP)
+client_ip=$(echo $SSH_CLIENT | awk '{print $1}')
+
+# 2. 判断是否获取成功，若失败或有特殊需求，则进入手动流程
+if [ -z "$client_ip" ] || [[ "$client_ip" == "127.0.0.1" ]]; then
+    echo -e " ${YELLOW}»${PLAIN} 未检测到有效的 SSH 来源 IP。"
+    read -p " 请手动输入你的本地公网IP (直接回车跳过测试): " manual_ip
+    client_ip=$manual_ip
+fi
+
+# 3. 执行测试
+if [ -n "$client_ip" ]; then
+    check_jitter "$client_ip" "目标节点 (本地/手动)"
+else
+    echo -e " ${RED}»${PLAIN} 未提供有效 IP，跳过本地链路测试。"
+fi
 # 1. 检测网关 (判断 VPS 宿主机本身的抖动)
 gw_ip=$(ip route 2>/dev/null | grep default | awk '{print $3}' | head -n 1)
 if [ -n "$gw_ip" ]; then
