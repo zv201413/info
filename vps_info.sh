@@ -32,9 +32,9 @@ print_menu_item() {
     local left="$1"
     local right="$2"
     
-    local margin=13
-    local col1_w=28
-    local gap=4
+    local margin=10
+    local col1_w=42
+    local gap=2
     
     local left_w=$(get_width "$left")
     local pad=$((col1_w - left_w))
