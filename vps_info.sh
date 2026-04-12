@@ -61,21 +61,27 @@ get_link_quality() {
         return
     fi
 
-    local proto="IPv4"
-    [[ "$my_ip" == *":"* ]] && proto="IPv6"
+    local proto="IPv4"; [[ "$my_ip" == *":"* ]] && proto="IPv6"
 
-    local stats=$(ss -ti "dst $my_ip" 2>/dev/null | grep -A 1 "ESTAB" | tail -n 1)
-    local rtt=$(echo "$stats" | grep -oP 'rtt:[\d\.]+' | cut -d: -f2 || echo "-")
-    local mdev=$(echo "$stats" | grep -oP 'rtt:[\d\.]+/[\d\.]+' | cut -d/ -f2 || echo "-")
+    curl -I -s --max-time 1 --connect-timeout 1 "http://${my_ip}" >/dev/null 2>&1
+
+    local stats=$(ss -ti "dst $my_ip" 2>/dev/null | grep -oP 'rtt:[\d\.]+' | head -n 1)
+    local rtt=""
+    local mdev=""
     
-    local color_rtt="${GREEN}"
-    [[ "$rtt" =~ ^[0-9]+$ ]] && [ "$rtt" -gt 100 ] && color_rtt="${YELLOW}"
-    [[ "$rtt" =~ ^[0-9]+$ ]] && [ "$rtt" -gt 200 ] && color_rtt="${RED}"
-    
-    [ "$rtt" = "-" ] && rtt="?"
-    [ "$mdev" = "-" ] && mdev="?"
-    
-    echo -e "${CYAN}${proto}${PLAIN} | 延迟: ${color_rtt}${rtt}ms${PLAIN} | 抖动: ${YELLOW}${mdev}ms${PLAIN}"
+    if [ -n "$stats" ]; then
+        rtt=$(echo "$stats" | grep -oP 'rtt:[\d\.]+' | cut -d: -f2)
+        mdev=$(echo "$stats" | grep -oP 'rtt:[\d\.]+/[\d\.]+' | cut -d/ -f2)
+    fi
+
+    if [ -z "$rtt" ] || [ -z "$mdev" ]; then
+        echo -e "${CYAN}${proto}${PLAIN} | ${YELLOW}无RTT数据${PLAIN}"
+    else
+        local color_rtt="${GREEN}"
+        [[ "$rtt" =~ ^[0-9]+$ ]] && [ "$rtt" -gt 100 ] && color_rtt="${YELLOW}"
+        [[ "$rtt" =~ ^[0-9]+$ ]] && [ "$rtt" -gt 200 ] && color_rtt="${RED}"
+        echo -e "${CYAN}${proto}${PLAIN} | 延迟: ${color_rtt}${rtt}ms${PLAIN} | 抖动: ${YELLOW}${mdev}ms${PLAIN}"
+    fi
 }
 
 get_uptime_simple() {
