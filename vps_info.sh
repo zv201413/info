@@ -441,13 +441,13 @@ print_menu_item "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测�
 print_menu_item "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
 
 echo -e "${CYAN}▸ 网络测速${PLAIN}"
-print_menu_item "${CYAN}5. Superspeed三网测速" "${CYAN}6. nxtrace回程测试"
-print_menu_item "${CYAN}7. ludashi2020线路测试" "${CYAN}8. mtr_trace回程测试"
-print_menu_item "${CYAN}9. besttrace路由测试" "${CYAN}13. Speedtest-CLI测速"
+print_menu_item "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速"
+print_menu_item "${CYAN}7. nxtrace回程测试" "${CYAN}8. ludashi2020线路测试"
+print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试"
 
 echo -e "${PURPLE}▸ 性能测试${PLAIN}"
-print_menu_item "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试"
-print_menu_item "${PURPLE}12. 融合怪大测评" " "
+print_menu_item "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试"
+print_menu_item "${PURPLE}13. 融合怪大测评" " "
 echo -e "${RED}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
@@ -465,23 +465,23 @@ case "$test_choice" in
        wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash 
        ;;
     4) clear; bash <(curl -Ls IP.Check.Place) ;;
-    5) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
-    6) 
+    5) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
+    7) 
        clear
        curl nxtrace.org/nt | bash
        nexttrace --fast-trace --tcp
        ;;
-    7) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
-    8) clear; curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh | bash ;;
-    9) 
+    8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
+    9) clear; curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh | bash ;;
+    10) 
        clear
        if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
        wget -qO- git.io/besttrace | bash 
        ;;
-    10) clear; bash <(curl -sL bash.icu/gb5) ;;
-    11) clear; curl -Lso- bench.sh | bash ;;
-    12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    13) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    11) clear; bash <(curl -sL bash.icu/gb5) ;;
+    12) clear; curl -Lso- bench.sh | bash ;;
+    13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
