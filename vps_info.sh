@@ -194,7 +194,7 @@ else
 fi
 
 echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
-print_menu_item "${CYAN}操作系统: ${os_type}" "${GREEN}环境类型: ${virt_result}"
+print_menu_item "${CYAN}操作系统: ${os_type}" "${CYAN}环境类型: ${virt_result}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # 1. 基础硬件与内核协议栈
