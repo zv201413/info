@@ -61,37 +61,6 @@ get_mem_simple() {
     fi
 }
 
-# --- 延迟抖动深度检测函数 ---
-check_jitter() {
-    local target=$1
-    local name=$2
-    echo -ne " ${BLUE}»${PLAIN} 正在测试 ${CYAN}$name${PLAIN} ($target) 的稳定性... "
-
-    # 发送 15 个快速 Ping 包 (0.2s 间隔) 获取统计数据
-    # mdev 代表 Mean Deviation (平均偏差)，是衡量 Jitter 的核心指标
-    local stats=$(ping -c 15 -i 0.2 -q "$target" 2>/dev/null)
-    
-    if [ -z "$stats" ]; then
-        echo -e "${RED}连接失败 (Timeout/Unreachable)${PLAIN}"
-        return
-    fi
-
-    # 提取平均延迟 (avg) 和 抖动 (mdev)
-    local result=$(echo "$stats" | tail -n 1 | awk -F '/' '{print $5,$7}' | awk '{print $1,$2}')
-    local avg_lat=$(echo $result | cut -d' ' -f1)
-    local jitter=$(echo $result | cut -d' ' -f2)
-
-    if [ -z "$jitter" ]; then
-        echo -e "${RED}无法计算指标${PLAIN}"
-    else
-        # 抖动着色逻辑
-        local j_color=$GREEN
-        if [ "$(echo "$jitter > 15" | bc 2>/dev/null)" -eq 1 ]; then j_color=$YELLOW; fi
-        if [ "$(echo "$jitter > 40" | bc 2>/dev/null)" -eq 1 ]; then j_color=$RED; fi
-
-        echo -e "延迟: ${CYAN}${avg_lat}ms${PLAIN} | 抖动: ${j_color}${jitter}ms${PLAIN}"
-    fi
-}
 # --- 环境依赖检查与安装 (精简版) ---
 check_and_install_deps() {
     local missing_deps=()
@@ -157,7 +126,19 @@ print_center "${SHORTCUT_MSG}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 虚拟化与环境深度鉴定 ---
-os_type=$(uname -s)
+# --- 系统版本深度探测 ---
+if [ -f /etc/os-release ]; then
+    # 提取 PRETTY_NAME，例如 "Ubuntu 22.04.3 LTS"
+    os_type=$(grep "PRETTY_NAME" /etc/os-release | cut -d'"' -f2)
+elif [ -f /etc/lsb-release ]; then
+    os_type=$(grep "DISTRIB_DESCRIPTION" /etc/lsb-release | cut -d'"' -f2)
+elif [ -f /etc/debian_version ]; then
+    os_type="Debian $(cat /etc/debian_version)"
+elif [ -f /etc/redhat-release ]; then
+    os_type=$(cat /etc/redhat-release)
+else
+    os_type=$(uname -s)
+fi
 
 if [ "$os_type" = "FreeBSD" ]; then
     host_name=$(hostname)
