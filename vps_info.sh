@@ -49,6 +49,11 @@ print_menu_item() {
 
 # --- 实时链路嗅探 (一级菜单展示) ---
 get_link_quality() {
+    if ! command -v ss &> /dev/null; then
+        echo -e "${RED}ss不可用${PLAIN}"
+        return
+    fi
+    
     local my_ip=$(ss -ntu | grep 'ESTAB' | awk '{print $5}' | sed 's/]:.*//;s/\[//;s/:[0-9]*//' | sort -u | grep -vE '^(127\.|172\.|10\.|192\.168\.|::1)' | head -n 1)
     
     if [ -z "$my_ip" ]; then
@@ -64,8 +69,11 @@ get_link_quality() {
     local mdev=$(echo "$stats" | grep -oP 'rtt:[\d\.]+/[\d\.]+' | cut -d/ -f2 || echo "-")
     
     local color_rtt="${GREEN}"
-    [ "$rtt" != "-" ] && [ "$rtt" -gt 100 ] && color_rtt="${YELLOW}"
-    [ "$rtt" != "-" ] && [ "$rtt" -gt 200 ] && color_rtt="${RED}"
+    [[ "$rtt" =~ ^[0-9]+$ ]] && [ "$rtt" -gt 100 ] && color_rtt="${YELLOW}"
+    [[ "$rtt" =~ ^[0-9]+$ ]] && [ "$rtt" -gt 200 ] && color_rtt="${RED}"
+    
+    [ "$rtt" = "-" ] && rtt="?"
+    [ "$mdev" = "-" ] && mdev="?"
     
     echo -e "${CYAN}${proto}${PLAIN} | 延迟: ${color_rtt}${rtt}ms${PLAIN} | 抖动: ${YELLOW}${mdev}ms${PLAIN}"
 }
