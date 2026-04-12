@@ -63,12 +63,15 @@ get_link_quality() {
     local rtt=$(echo "$stats" | grep -oP 'rtt:[\d\.]+' | cut -d: -f2 || echo "-")
     local mdev=$(echo "$stats" | grep -oP 'rtt:[\d\.]+/[\d\.]+' | cut -d/ -f2 || echo "-")
     
-    # 颜色分级
     local color_rtt="${GREEN}"
     [ "$rtt" != "-" ] && [ "$rtt" -gt 100 ] && color_rtt="${YELLOW}"
     [ "$rtt" != "-" ] && [ "$rtt" -gt 200 ] && color_rtt="${RED}"
     
     echo -e "${CYAN}${proto}${PLAIN} | 延迟: ${color_rtt}${rtt}ms${PLAIN} | 抖动: ${YELLOW}${mdev}ms${PLAIN}"
+}
+
+get_uptime_simple() {
+    awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%d天%d时%d分", d, h, m}' /proc/uptime
 }
 
 # --- 链路深度审计功能 (选项5组合) ---
