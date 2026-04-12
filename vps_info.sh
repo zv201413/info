@@ -526,25 +526,19 @@ case "$test_choice" in
        wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash 
        ;;
     4) clear; bash <(curl -Ls IP.Check.Place) ;;
-    5) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
-    6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
-    7) 
-       clear
-       curl nxtrace.org/nt | bash
-       nexttrace --fast-trace --tcp
-       ;;
-    8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
-    9) clear; curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh | bash ;;
-    10) 
-       clear
-       if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
-       wget -qO- git.io/besttrace | bash 
-       ;;
     5) clear; run_link_audit ;;
-    11) clear; bash <(curl -sL bash.icu/gb5) ;;
-    12) clear; curl -Lso- bench.sh | python3 | bash ;;
-    13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o /tmp/ecs.sh && chmod +x /tmp/ecs.sh && bash /tmp/ecs.sh ;;
-    13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    0) exit 0 ;;
+     6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
+     7) clear; curl nxtrace.org/nt | bash ;;
+     8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
+     9) clear; curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh | bash ;;
+     10) 
+        clear
+        if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
+        wget -qO- git.io/besttrace | bash 
+        ;;
+     11) clear; bash <(curl -sL bash.icu/gb5) ;;
+     12) clear; curl -Lso- bench.sh | python3 | bash ;;
+     13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o /tmp/ecs.sh && chmod +x /tmp/ecs.sh && bash /tmp/ecs.sh ;;
+     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
