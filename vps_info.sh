@@ -273,8 +273,8 @@ echo -e "${BLUE}═════════════════════�
 print_center "${GREEN}▶ 硬件配额与系统状态${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
-print_menu_item "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}系统版本: ${os_type}"
-print_menu_item "${CYAN}CPU核心: ${display_cores}" "${CYAN}虚拟化: ${virt_result}"
+print_menu_item "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}CPU核心: ${display_cores}"
+print_menu_item "${CYAN}网络算法: ${cc_status}" "${CYAN}虚拟化: ${virt_result}"
 print_menu_item "${CYAN}存储状态: $(get_rom_info_detailed)" " "
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
