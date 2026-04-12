@@ -47,18 +47,79 @@ print_menu_item() {
     echo -e "${margin_spaces}${left}${padding_spaces}${gap_spaces}${right}"
 }
 
-# --- 辅助函数：获取精简数据 ---
-get_uptime_simple() {
-    awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%d天%d时%d分", d, h, m}' /proc/uptime
+# --- 实时链路嗅探 (一级菜单展示) ---
+get_link_quality() {
+    local my_ip=$(ss -ntu | grep 'ESTAB' | awk '{print $5}' | sed 's/]:.*//;s/\[//;s/:[0-9]*//' | sort -u | grep -vE '^(127\.|172\.|10\.|192\.168\.|::1)' | head -n 1)
+    
+    if [ -z "$my_ip" ]; then
+        echo -e "${RED}未连接${PLAIN}"
+        return
+    fi
+
+    local proto="IPv4"
+    [[ "$my_ip" == *":"* ]] && proto="IPv6"
+
+    local stats=$(ss -ti "dst $my_ip" 2>/dev/null | grep -A 1 "ESTAB" | tail -n 1)
+    local rtt=$(echo "$stats" | grep -oP 'rtt:[\d\.]+' | cut -d: -f2 || echo "-")
+    local mdev=$(echo "$stats" | grep -oP 'rtt:[\d\.]+/[\d\.]+' | cut -d/ -f2 || echo "-")
+    
+    # 颜色分级
+    local color_rtt="${GREEN}"
+    [ "$rtt" != "-" ] && [ "$rtt" -gt 100 ] && color_rtt="${YELLOW}"
+    [ "$rtt" != "-" ] && [ "$rtt" -gt 200 ] && color_rtt="${RED}"
+    
+    echo -e "${CYAN}${proto}${PLAIN} | 延迟: ${color_rtt}${rtt}ms${PLAIN} | 抖动: ${YELLOW}${mdev}ms${PLAIN}"
 }
 
-get_mem_simple() {
-    local mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
-    if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
-        echo "$((mem_limit_bytes / 1024 / 1024)) MB"
-    else
-        echo "$(free -m 2>/dev/null | awk '/Mem:/ {print $2}') MB"
+# --- 链路深度审计功能 (选项5组合) ---
+run_link_audit() {
+    clear
+    echo -e "${YELLOW}[链路深度审计]${PLAIN}"
+    
+    local my_ip=$(ss -ntu | grep 'ESTAB' | awk '{print $5}' | sed 's/]:.*//;s/\[//;s/:[0-9]*//' | sort -u | grep -vE '^(127\.|172\.|10\.|192\.168\.|::1)' | head -n 1)
+    
+    if [ -z "$my_ip" ]; then
+        echo -e "${RED}未检测到活跃连接，无法进行链路审计${PLAIN}"
+        read -p "按回车返回..."
+        return
     fi
+
+    local ip_type="IPv4"
+    [[ "$my_ip" == *":"* ]] && ip_type="IPv6"
+
+    echo -e "${GREEN}检测到本地出口 ${ip_type} IP: ${CYAN}${my_ip}${PLAIN}"
+    echo -e "${BLUE}══════════════════════════════════════════════════════${PLAIN}"
+
+    # 1. TCP 协议栈审计
+    echo -e "${YELLOW}[1/2] TCP 协议栈审计 (实时 RTT):${PLAIN}"
+    local tcp_stats=$(ss -ti "dst $my_ip" 2>/dev/null | grep -A 1 "ESTAB" | tail -n 1)
+    if [[ "$tcp_stats" == *"rtt"* ]]; then
+        local rtt=$(echo "$tcp_stats" | grep -oP 'rtt:[\d\.]+' | cut -d: -f2)
+        local mdev=$(echo "$tcp_stats" | grep -oP 'rtt:[\d\.]+/[\d\.]+' | cut -d/ -f2)
+        local p_rate=$(echo "$tcp_stats" | grep -oP 'pacing_rate [\d\.]+\w+' | awk '{print $2}')
+        echo -e "  - 往返延迟 (RTT): ${CYAN}${rtt} ms${PLAIN}"
+        echo -e "  - 网络抖动 (Jitter): ${CYAN}${mdev} ms${PLAIN}"
+        echo -e "  - 链路潜力 (Pacing): ${CYAN}${p_rate}${PLAIN}"
+    else
+        echo -e "  ${RED}暂无 TCP 统计数据 (请在 SSH 会话中产生一些流量后再试)${PLAIN}"
+    fi
+
+    # 2. UDP 路径探测
+    echo -e "\n${YELLOW}[2/2] UDP/回程路径抖动探测:${PLAIN}"
+    if command -v nexttrace &> /dev/null; then
+        echo -e "${GREEN}正在调用 NextTrace 进行 ${ip_type} 探测...${PLAIN}"
+        if [ "$ip_type" == "IPv6" ]; then
+            nexttrace --udp -6 "$my_ip" --fast-trace | tail -n 5
+        else
+            nexttrace --udp -4 "$my_ip" --fast-trace | tail -n 5
+        fi
+    else
+        echo -e "${RED}未安装 NextTrace，无法评估 UDP 抖动。${PLAIN}"
+        echo -e "${YELLOW}提示: 请通过菜单选项 7 安装 NextTrace${PLAIN}"
+    fi
+    
+    echo -e "${BLUE}══════════════════════════════════════════════════════${PLAIN}"
+    read -p "按回车键返回..."
 }
 
 # --- 环境依赖检查与安装 (精简版) ---
@@ -414,6 +475,8 @@ get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+print_menu_item "${YELLOW}实时链路: $(get_link_quality)" ""
+echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 print_center "${GREEN}▶ 测试脚本合集${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
@@ -422,7 +485,7 @@ print_menu_item "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测�
 print_menu_item "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
 
 echo -e "${CYAN}▸ 网络测速${PLAIN}"
-print_menu_item "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速"
+print_menu_item "${CYAN}5. 链路深度审计 (TCP+UDP)" "${CYAN}6. Superspeed三网测速"
 print_menu_item "${CYAN}7. nxtrace回程测试" "${CYAN}8. ludashi2020线路测试"
 print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试"
 
@@ -460,8 +523,10 @@ case "$test_choice" in
        if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
        wget -qO- git.io/besttrace | bash 
        ;;
+    5) clear; run_link_audit ;;
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
-    12) clear; curl -Lso- bench.sh | bash ;;
+    12) clear; curl -Lso- bench.sh | python3 | bash ;;
+    13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o /tmp/ecs.sh && chmod +x /tmp/ecs.sh && bash /tmp/ecs.sh ;;
     13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
