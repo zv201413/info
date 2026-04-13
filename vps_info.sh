@@ -88,20 +88,12 @@ check_and_install_deps
 # --- 快捷键配置 ---
 if [ "$EUID" -eq 0 ]; then
     rm -f /usr/local/bin/vps
-    script_path=$(realpath "$0")
-    if [ -f "$script_path" ] && [[ "$script_path" == *"/vps_info"* ]]; then
-        wrapper_content="#!/bin/bash
-if [ -f \"$script_path\" ]; then
-    bash \"$script_path\" \"\$@\"
-else
-    curl -fsSL \"https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh\" -o /tmp/vps_info_latest.sh
-    bash /tmp/vps_info_latest.sh \"\$@\"
-    rm -f /tmp/vps_info_latest.sh
-fi"
-    else
-        wrapper_content='#!/bin/bash
+    
+    # 始终在线拉取最新版本，确保每次运行都是最新检测逻辑
+    wrapper_content='#!/bin/bash
 SCRIPT_URL="https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh"
 TEMP_SCRIPT="/tmp/vps_info_latest.sh"
+
 if curl -fsSL "$SCRIPT_URL" -o "$TEMP_SCRIPT" >/dev/null 2>&1; then
     chmod +x "$TEMP_SCRIPT" >/dev/null 2>&1
     bash "$TEMP_SCRIPT" "$@"
@@ -110,11 +102,11 @@ else
     echo -e "\033[0;31m无法在线获取脚本，请检查网络连接\033[0m"
     exit 1
 fi'
-    fi
+    
     echo "$wrapper_content" > /usr/local/bin/vps
     chmod +x /usr/local/bin/vps
     hash -r >/dev/null 2>&1
-    SHORTCUT_MSG="${GREEN}快捷键设置成功! 下次输入 vps 即可运行${PLAIN}"
+    SHORTCUT_MSG="${GREEN}快捷键设置成功! 每次运行 vps 将自动拉取最新版本${PLAIN}"
 else
     SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
