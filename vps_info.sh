@@ -286,12 +286,11 @@ audit_config() {
 import json, sys, re
 try:
     with open('$conf_path', 'rb') as f:
-        raw_content = f.read().decode('utf-8-sig', errors='ignore')
+        raw_content = f.read().decode('utf-8', errors='ignore')
     
-    # 终极清洗：去除 \xa0, \u200b 等所有非标准空白字符，统一为空格
     content = re.sub(r'[\xa0\u200b\u200c\u200d\u200e\u200f]', ' ', raw_content)
-    # 清除 JSONC 注释
-    content = re.sub(r'//.*?\n|/\*.*?\*/', '\n', content, flags=re.S)
+    content = re.sub(r'^\s*//.*?$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'/\*.*?\*/', '', content, flags=re.S)
     
     c = json.loads(content)
 except Exception as e:
