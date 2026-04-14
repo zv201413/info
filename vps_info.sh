@@ -437,7 +437,38 @@ case "$test_choice" in
        wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash 
        ;;
     4) clear; bash <(curl -Ls IP.Check.Place) ;;
-    5) clear; curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+    5) clear
+       echo -e "${YELLOW}正在启动测速方案...${PLAIN}"
+       echo -e "${CYAN}方案 A: Speedtest-CLI (基于 Python)${PLAIN}"
+       # 尝试执行方案 A，加上 --secure 增加兼容性
+       if ! curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 -- --secure; then
+           echo -e "\n${RED}方案 A 测试失败或被跳过。${PLAIN}"
+       fi
+
+       echo -e "\n${CYAN}方案 B: 备用测速 (Cachefly 100MB 节点直链)${PLAIN}"
+       echo -e "${YELLOW}正在测速中，请稍候...${PLAIN}"
+       
+       # 使用 curl 的 -w 参数获取下载速度 (bytes/sec)
+       # -L 跟随重定向, -o /dev/null 不保存文件, -s 静默模式
+       speed_bytes=$(curl -L -o /dev/null -s -w '%{speed_download}\n' http://cachefly.cachefly.net/100mb.test)
+       
+       if [ -n "$speed_bytes" ] && [ "${speed_bytes%.*}" -gt 0 ]; then
+           # 使用 python3 计算结果（因为脚本依赖检查中去掉了 bc）
+           read -r mbps mb_s <<< $(python3 -c "
+b = $speed_bytes
+mbps = (b * 8) / 1000000
+mb_s = b / 1024 / 1024
+print(f'{mbps:.2f} {mb_s:.2f}')
+")
+           echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+           echo -e "${GREEN}测速完成 (Plan B):${PLAIN}"
+           echo -e "下载速度: ${YELLOW}${mbps} Mbps${PLAIN} (${GREEN}${mb_s} MB/s${PLAIN})"
+           echo -e "测试节点: Cachefly Anycast (Global)"
+           echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+       else
+           echo -e "${RED}方案 B 测试失败，请检查网络连接或 curl 是否安装。${PLAIN}"
+       fi
+       ;;
     6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
     7) 
        clear
