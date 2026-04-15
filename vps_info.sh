@@ -141,15 +141,12 @@ fi'
     echo "$wrapper_content" > /usr/local/bin/vps
     chmod +x /usr/local/bin/vps
     hash -r >/dev/null 2>&1
-    SHORTCUT_MSG="${GREEN}快捷键设置成功! 每次运行 vps 将自动拉取最新版本${PLAIN}"
-else
-    SHORTCUT_MSG="${RED}注意: 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
 
 clear
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 print_center "🛡️  VPS 基础信息与测试工具箱"
-print_center "${SHORTCUT_MSG}"
+echo -e " bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 虚拟化与环境深度鉴定 ---
@@ -470,6 +467,8 @@ echo -e "${RED}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+print_center "${GREEN}✓ 快捷键设置成功! 下次运行 vps 即可启动${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 read -p "请输入数字选择: " test_choice
