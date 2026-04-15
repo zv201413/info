@@ -141,6 +141,9 @@ fi'
     echo "$wrapper_content" > /usr/local/bin/vps
     chmod +x /usr/local/bin/vps
     hash -r >/dev/null 2>&1
+    SHORTCUT_MSG="${GREEN}✓ 快捷键设置成功! 下次运行 vps 即可启动${PLAIN}"
+else
+    SHORTCUT_MSG="${YELLOW}⚠️ 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
 
 clear
@@ -468,7 +471,7 @@ echo -e "${RED}0. 退出脚本${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-print_center "${GREEN}✓ 快捷键设置成功! 下次运行 vps 即可启动${PLAIN}"
+print_center "${SHORTCUT_MSG}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 read -p "请输入数字选择: " test_choice
