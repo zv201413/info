@@ -146,7 +146,7 @@ fi
 clear
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 print_center "🛡️  VPS 基础信息与测试工具箱"
-echo -e " bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)"
+print_center "${CYAN}bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)${PLAIN}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
 # --- 虚拟化与环境深度鉴定 ---
