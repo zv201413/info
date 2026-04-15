@@ -61,26 +61,61 @@ get_mem_simple() {
     fi
 }
 
-# --- 环境依赖检查与安装 (精简版) ---
+# --- 环境依赖检查与安装 (支持多系统) ---
 check_and_install_deps() {
     local missing_deps=()
     local install_cmd=""
     
-    # 包管理器检测省略... (保持原样)
+    # 检测包管理器
+    if command -v apk &> /dev/null; then
+        install_cmd="apk add --no-cache"
+    elif command -v apt-get &> /dev/null; then
+        install_cmd="apt-get install -y"
+    elif command -v yum &> /dev/null; then
+        install_cmd="yum install -y"
+    elif command -v dnf &> /dev/null; then
+        install_cmd="dnf install -y"
+    fi
     
-    # 只检查最核心的 3 个依赖：去掉了 bc 和 dnsutils
-    for cmd in curl python3 ping; do
+    # 检查核心依赖
+    for cmd in curl ping; do
         if ! command -v "$cmd" &> /dev/null; then
             missing_deps+=("$cmd")
         fi
     done
     
+    # 检查 python3 (审计和测速需要)
+    if ! command -v python3 &> /dev/null; then
+        missing_deps+=("python3")
+    fi
+    
+    # 检查 ip (可选)
+    if ! command -v ip &> /dev/null && ! command -v ifconfig &> /dev/null; then
+        missing_deps+=("iproute2")
+    fi
+    
     if [ ${#missing_deps[@]} -gt 0 ]; then
         echo -e "${YELLOW}⚠️  检测到缺失依赖: ${missing_deps[*]}${PLAIN}"
-        echo -e "${CYAN}正在尝试安装...${PLAIN}"
-        [ -x "$(command -v apt-get)" ] && apt-get update -qq >/dev/null 2>&1
-        # 安装命令同步精简
-        $install_cmd curl python3 iputils-ping >/dev/null 2>&1
+        if [ -n "$install_cmd" ]; then
+            echo -e "${CYAN}正在安装...${PLAIN}"
+            if [ "$install_cmd" = "apk add --no-cache" ]; then
+                apk update -q >/dev/null 2>&1
+                $install_cmd curl python3 iproute2 >/dev/null 2>&1
+            elif [ "$install_cmd" = "apt-get install -y" ]; then
+                apt-get update -qq >/dev/null 2>&1
+                $install_cmd curl python3 iproute2 iputils-ping >/dev/null 2>&1
+            else
+                $install_cmd curl python3 >/dev/null 2>&1
+            fi
+            # 验证
+            if command -v python3 &> /dev/null; then
+                echo -e "${GREEN}✓ 依赖安装完成${PLAIN}"
+            else
+                echo -e "${YELLOW}⚠️ python3 安装失败，部分功能可能不可用${PLAIN}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️ 未检测到支持的包管理器，请手动安装: curl python3${PLAIN}"
+        fi
     fi
 }
 check_and_install_deps
@@ -249,10 +284,10 @@ get_rom_info_detailed() {
 }
 
 # 拥塞算法探测
-if command -v ss &> /dev/null; then
-    tcp_cc=$(ss -ti | grep -oP '(?<= )(bbr|cubic|reno|hybla|westwood)(?= )' | head -n1)
+tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
+if [ -z "$tcp_cc" ] && command -v ss &> /dev/null; then
+    tcp_cc=$(ss -ti 2>/dev/null | grep -oE 'bbr|cubic|reno|hybla|westwood' | head -n1)
 fi
-[ -z "$tcp_cc" ] && tcp_cc=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
 
 case "$tcp_cc" in
     "bbr") cc_status="${GREEN}BBR${PLAIN}" ;;
@@ -281,6 +316,17 @@ audit_config() {
         
         local is_sb="false"
         [[ "$proc_name" == *"ing-box"* ]] && is_sb="true"
+        
+        # 检查 python3 是否可用
+        if ! command -v python3 &> /dev/null; then
+            # Bash fallback: 简单 grep 检测
+            if grep -qiE "wireguard|warp" "$conf_path" 2>/dev/null; then
+                echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口 (基础检测)${PLAIN}"
+            else
+                echo -e "出站: ${RED}✘ 纯直连/普通代理 (python3未安装)${PLAIN}"
+            fi
+            return
+        fi
         
         local result=$(python3 -c "
 import json, sys, re
@@ -369,9 +415,9 @@ print('WARP' if w_rt else 'DIRECT')
     fi
 }
 
-x_path=$(ps aux | grep -v grep | grep "xray" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
+x_path=$(ps aux 2>/dev/null | grep -v grep | grep "/xray" | awk '{for(i=1;i<=NF;i++) if($i=="-c" || $i=="-config") {print $(i+1); break}}' | head -n1)
 [ -n "$x_path" ] && audit_config "Xray" "$x_path"
-s_path=$(ps aux | grep -v grep | grep "sing-box" | sed -n 's/.*-c \([^ ]*\).*/\1/p' | head -n1)
+s_path=$(ps aux 2>/dev/null | grep -v grep | grep "/sing-box" | awk '{for(i=1;i<=NF;i++) if($i=="-c" || $i=="-config") {print $(i+1); break}}' | head -n1)
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
 
