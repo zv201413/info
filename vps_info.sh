@@ -472,12 +472,11 @@ get_ip_info() {
     if [[ -n "$query_ip" ]]; then
         local info=$(curl -4 -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
         echo -e "${PURPLE}[$version 网络]${PLAIN}"
-        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}"
+        # 使用 OSC 8 超链接转义序列添加点击跳转功能
+        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\🔍 点此打开 ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
         if [[ "$info" == *"success"* ]]; then
             get_v() { echo "$info" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
-            local is_h=$(get_v "hosting"); local is_p=$(get_v "proxy")
             echo -e "地理位置 : ${GREEN}$(get_v "country") - $(get_v "city")${PLAIN} | ISP: $(get_v "isp")"
-            echo -e "IP 类型  : $([ "$is_h" == "true" ] && echo -e "${RED}IDC机房${PLAIN}" || echo -e "${GREEN}住宅/原生${PLAIN}") | 风控: $([ "$is_p" == "true" ] && echo -e "${RED}高风险${PLAIN}" || echo -e "${GREEN}低风险${PLAIN}")"
         fi
     else
         echo -e "${PURPLE}[$version 网络]${PLAIN} : ${RED}未检测到有效连接${PLAIN}"
