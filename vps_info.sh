@@ -257,21 +257,31 @@ if [ "$os_type" = "FreeBSD" ]; then
 elif [ -d /proc/vz ]; then
     # OpenVZ 深度审计：通过 UBC 获取 privvmpages
     if [ -f /proc/user_beancounters ]; then
-        # limit 值单位为 4KB 页面
-        limit_pages=$(grep "privvmpages" /proc/user_beancounters | awk '{print $4}')
+        # 取 barrier ($4) 和 limit ($5) 中的最大值，单位为 4KB 页面
+        limit_pages=$(grep "privvmpages" /proc/user_beancounters | awk '{b=$4; l=$5; if(l>b) print l; else print b}')
         true_mem=$((limit_pages * 4 / 1024))
-        mem_info="${GREEN}${true_mem} MB (OpenVZ 真实配额)${PLAIN}"
+    fi
+    
+    # 如果 UBC 获取失败或结果为 0，回退到 Cgroup 探测
+    if [ -z "$true_mem" ] || [ "$true_mem" -eq 0 ]; then
+        cgroup_limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
+        if [[ "$cgroup_limit" =~ ^[0-9]+$ ]] && [ "$cgroup_limit" -lt 1099511627776 ]; then
+            true_mem=$((cgroup_limit / 1024 / 1024))
+            mem_info="${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
+        else
+            total_mem=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
+            mem_info="${GREEN}${total_mem} MB (OpenVZ 共享物理)${PLAIN}"
+        fi
     else
-        total_mem=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
-        mem_info="${GREEN}${total_mem} MB (OpenVZ 共享物理)${PLAIN}"
+        mem_info="${GREEN}${true_mem} MB (OpenVZ 真实配额)${PLAIN}"
     fi
 else
     # Linux 深度审计：取 Cgroup 限制与系统 MemTotal 的最小值
     cgroup_limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
     sys_total_bytes=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') * 1024 ))
     
-    # 过滤掉 Cgroup 默认的极大值 (1TB 阈值)
-    if [ -n "$cgroup_limit" ] && [ "$cgroup_limit" -lt 1099511627776 ] && [ "$cgroup_limit" -lt "$sys_total_bytes" ]; then
+    # 过滤掉 Cgroup 默认的极大值 (1TB 阈值) 且确保是数字进行比较
+    if [[ "$cgroup_limit" =~ ^[0-9]+$ ]] && [ "$cgroup_limit" -lt 1099511627776 ] && [ "$cgroup_limit" -lt "$sys_total_bytes" ]; then
         true_mem=$((cgroup_limit / 1024 / 1024))
         mem_info="${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
     else
