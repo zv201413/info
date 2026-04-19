@@ -246,15 +246,41 @@ fi
 
 # --- 内存深度审计逻辑 ---
 if [ "$os_type" = "FreeBSD" ]; then
-    mem_info="${GREEN}$(ulimit -v | awk '{print $1}') (FreeBSD Process Limit)${PLAIN}"
-else
-    mem_limit_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
-    if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
-        true_mem=$((mem_limit_bytes / 1024 / 1024))
-        mem_info="${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
+    # FreeBSD 深度审计：结合 ulimit 和 sysctl
+    limit_v=$(ulimit -v 2>/dev/null)
+    phys_mem=$(( $(sysctl -n hw.physmem 2>/dev/null || echo 0) / 1024 / 1024 ))
+    if [ "$limit_v" != "unlimited" ] && [ -n "$limit_v" ]; then
+        mem_info="${GREEN}$((limit_v / 1024)) MB (FreeBSD 进程限制)${PLAIN}"
+    else
+        mem_info="${GREEN}${phys_mem} MB (FreeBSD 物理总量)${PLAIN}"
+    fi
+elif [ -d /proc/vz ]; then
+    # OpenVZ 深度审计：通过 UBC 获取 privvmpages
+    if [ -f /proc/user_beancounters ]; then
+        # limit 值单位为 4KB 页面
+        limit_pages=$(grep "privvmpages" /proc/user_beancounters | awk '{print $4}')
+        true_mem=$((limit_pages * 4 / 1024))
+        mem_info="${GREEN}${true_mem} MB (OpenVZ 真实配额)${PLAIN}"
     else
         total_mem=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
-        mem_info="${GREEN}${total_mem} MB (共享物理总量)${PLAIN}"
+        mem_info="${GREEN}${total_mem} MB (OpenVZ 共享物理)${PLAIN}"
+    fi
+else
+    # Linux 深度审计：取 Cgroup 限制与系统 MemTotal 的最小值
+    cgroup_limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
+    sys_total_bytes=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') * 1024 ))
+    
+    # 过滤掉 Cgroup 默认的极大值 (1TB 阈值)
+    if [ -n "$cgroup_limit" ] && [ "$cgroup_limit" -lt 1099511627776 ] && [ "$cgroup_limit" -lt "$sys_total_bytes" ]; then
+        true_mem=$((cgroup_limit / 1024 / 1024))
+        mem_info="${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
+    else
+        true_mem=$((sys_total_bytes / 1024 / 1024))
+        if [[ "$virt_result" == *"Container"* ]]; then
+            mem_info="${GREEN}${true_mem} MB (容器分配配额)${PLAIN}"
+        else
+            mem_info="${GREEN}${true_mem} MB (物理/虚拟总量)${PLAIN}"
+        fi
     fi
 fi
 
