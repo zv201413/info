@@ -486,7 +486,7 @@ echo -e "${BLUE}================================================================
 
 # --- 4. IP 深度画像 (并行优化) ---
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
-get_ip_info_data() {
+get_ip_info() {
     local version=$1; local flag=$2
     local query_ip=""
     local endpoints=(
@@ -506,22 +506,6 @@ get_ip_info_data() {
 
     if [[ -n "$query_ip" ]]; then
         local info=$(curl -$flag -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
-        echo "$version|$query_ip|$info"
-    else
-        echo "$version|NONE|"
-    fi
-}
-
-# 并行执行 IP 获取
-tmp_ip_v4=$(get_ip_info_data "IPv4" "4") &
-tmp_ip_v6=$(get_ip_info_data "IPv6" "6") &
-wait
-
-display_ip_info() {
-    local raw_data="$1"
-    IFS='|' read -r version query_ip info <<< "$raw_data"
-    
-    if [[ "$query_ip" != "NONE" ]]; then
         echo -e "${PURPLE}[$version 网络]${PLAIN}"
         echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\[?] 点此打开 ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
         if [[ "$info" == *"success"* ]]; then
@@ -533,8 +517,8 @@ display_ip_info() {
     fi
 }
 
-display_ip_info "$tmp_ip_v4"
-display_ip_info "$tmp_ip_v6"
+get_ip_info "IPv4" "4"
+get_ip_info "IPv6" "6"
 
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
