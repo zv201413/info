@@ -1,4 +1,6 @@
 #!/bin/bash
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 # 颜色定义
 RED='\033[0;31m'
@@ -14,17 +16,21 @@ WIDTH=92
 
 get_width() {
     local text="$1"
-    # 移除 ANSI 转义序列
-    local stripped=$(echo -e "$text" | sed "s/\x1b\[[0-9;]*[a-zA-Z]//g")
+    # 使用更加鲁棒的 sed 正则移除 ANSI 转义序列
+    local stripped=$(echo -e "$text" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | sed 's/\x1b(B//g')
     
     if command -v python3 &>/dev/null; then
-        python3 -c 'import sys; s = sys.argv[1]; print(sum(2 if ord(c) > 127 else 1 for c in s))' "$stripped"
+        # 增加容错，避免 python 调用失败
+        local w=$(python3 -c "import sys; s = sys.argv[1]; print(sum(2 if ord(c) > 127 else 1 for c in s))" "$stripped" 2>/dev/null)
+        echo "${w:-${#stripped}}"
     else
-        # 备用方案：使用 awk 计算宽度 (将非 ASCII 字符计为 2)
-        echo "$stripped" | awk '{
+        # awk 备用方案：将非 ASCII 字符计为 2
+        # 显式设置 LC_ALL 确保 awk 正确处理多字节字符
+        local w=$(echo "$stripped" | LC_ALL=en_US.UTF-8 awk '{
             gsub(/[^\x00-\x7f]/, "XX");
             print length($0);
-        }'
+        }' 2>/dev/null)
+        echo "${w:-${#stripped}}"
     fi
 }
 
