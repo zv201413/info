@@ -489,15 +489,23 @@ echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
 get_ip_info_data() {
     local version=$1; local flag=$2
     local query_ip=""
-    local endpoints=("https://api$flag.ipify.org" "https://ifconfig.io/ip")
+    local endpoints=(
+        "https://api$flag.ipify.org"
+        "https://ifconfig.me/ip"
+        "https://icanhazip.com"
+        "https://ident.me"
+        "https://api.ip.sb/ip"
+        "http://ip.3322.net/IP"
+        "http://myip.ipip.net/s"
+    )
 
     for url in "${endpoints[@]}"; do
-        query_ip=$(curl -$flag -s --max-time 5 "$url" 2>/dev/null | grep -oE '([0-9a-fA-F.:]{7,45})' | head -n1)
+        query_ip=$(curl -$flag -sL --max-time 3 "$url" 2>/dev/null | grep -oE '([0-9a-fA-F.:]{7,45})' | head -n1)
         [[ -n "$query_ip" ]] && break
     done
 
     if [[ -n "$query_ip" ]]; then
-        local info=$(curl -4 -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
+        local info=$(curl -$flag -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
         echo "$version|$query_ip|$info"
     else
         echo "$version|NONE|"
