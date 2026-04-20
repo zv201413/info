@@ -13,11 +13,19 @@ PLAIN='\033[0m'
 WIDTH=92
 
 get_width() {
-    python3 -c '
-import sys, re
-s = re.sub(r"(\\033|\\e|\\x1b|\x1b)\[[0-9;]*[a-zA-Z]", "", sys.argv[1])
-print(sum(2 if ord(c) > 127 else 1 for c in s))
-' "$1"
+    local text="$1"
+    # 移除 ANSI 转义序列
+    local stripped=$(echo -e "$text" | sed "s/\x1b\[[0-9;]*[a-zA-Z]//g")
+    
+    if command -v python3 &>/dev/null; then
+        python3 -c 'import sys; s = sys.argv[1]; print(sum(2 if ord(c) > 127 else 1 for c in s))' "$stripped"
+    else
+        # 备用方案：使用 awk 计算宽度 (将非 ASCII 字符计为 2)
+        echo "$stripped" | awk '{
+            gsub(/[^\x00-\x7f]/, "XX");
+            print length($0);
+        }'
+    fi
 }
 
 print_center() {
@@ -535,15 +543,13 @@ case "$test_choice" in
        # -L 跟随重定向, -o /dev/null 不保存文件, -s 静默模式
        speed_bytes=$(curl -L -o /dev/null -s -w '%{speed_download}\n' http://cachefly.cachefly.net/100mb.test)
        
-       if [ -n "$speed_bytes" ] && [ "${speed_bytes%.*}" -gt 0 ]; then
-           # 使用 python3 计算结果（因为脚本依赖检查中去掉了 bc）
-           read -r mbps mb_s <<< $(python3 -c "
-b = $speed_bytes
-mbps = (b * 8) / 1000000
-mb_s = b / 1024 / 1024
-print(f'{mbps:.2f} {mb_s:.2f}')
-")
-           echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+        if [ -n "$speed_bytes" ] && [ "${speed_bytes%.*}" -gt 0 ]; then
+            # 使用 awk 计算结果
+            read -r mbps mb_s <<< $(awk "BEGIN {
+                b = $speed_bytes
+                printf \"%.2f %.2f\", (b * 8) / 1000000, b / 1024 / 1024
+            }")
+            echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
            echo -e "${GREEN}测速完成 (Plan B):${PLAIN}"
            echo -e "下载速度: ${YELLOW}${mbps} Mbps${PLAIN} (${GREEN}${mb_s} MB/s${PLAIN})"
            echo -e "测试节点: Cachefly Anycast (Global)"
