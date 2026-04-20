@@ -1,6 +1,15 @@
 #!/bin/bash
-export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
+# 强制开启兼容性语言环境
+if locale -a | grep -q "C.utf8"; then
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+elif locale -a | grep -q "en_US.utf8"; then
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+else
+    export LANG=C
+    export LC_ALL=C
+fi
 
 # 颜色定义
 RED='\033[0;31m'
@@ -109,7 +118,7 @@ check_and_install_deps() {
     fi
     
     if [ ${#missing_deps[@]} -gt 0 ]; then
-        echo -e "${YELLOW}⚠️  检测到缺失依赖: ${missing_deps[*]}${PLAIN}"
+        echo -e "${YELLOW}[!] 检测到缺失依赖: ${missing_deps[*]}${PLAIN}"
         if [ -n "$install_cmd" ]; then
             echo -e "${CYAN}正在安装...${PLAIN}"
             if [ "$install_cmd" = "apk add --no-cache" ]; then
@@ -123,12 +132,12 @@ check_and_install_deps() {
             fi
             # 验证
             if command -v python3 &> /dev/null; then
-                echo -e "${GREEN}✓ 依赖安装完成${PLAIN}"
+                echo -e "${GREEN}[OK] 依赖安装完成${PLAIN}"
             else
-                echo -e "${YELLOW}⚠️ python3 安装失败，部分功能可能不可用${PLAIN}"
+                echo -e "${YELLOW}[!] python3 安装失败，部分功能可能不可用${PLAIN}"
             fi
         else
-            echo -e "${YELLOW}⚠️ 未检测到支持的包管理器，请手动安装: curl python3${PLAIN}"
+            echo -e "${YELLOW}[!] 未检测到支持的包管理器，请手动安装: curl python3${PLAIN}"
         fi
     fi
 }
@@ -155,16 +164,16 @@ fi'
     echo "$wrapper_content" > /usr/local/bin/vps
     chmod +x /usr/local/bin/vps
     hash -r >/dev/null 2>&1
-    SHORTCUT_MSG="${GREEN}✓ 快捷键设置成功! 下次运行 vps 即可启动${PLAIN}"
+    SHORTCUT_MSG="${GREEN}[OK] 快捷键设置成功! 下次运行 vps 即可启动${PLAIN}"
 else
-    SHORTCUT_MSG="${YELLOW}⚠️ 非Root用户, 快捷键可能无法生效${PLAIN}"
+    SHORTCUT_MSG="${YELLOW}[!] 非Root用户, 快捷键可能无法生效${PLAIN}"
 fi
 
 clear
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-print_center "🛡️  VPS 基础信息与测试工具箱"
+echo -e "${BLUE}============================================================================================${PLAIN}"
+print_center "[i] VPS 基础信息与测试工具箱"
 print_center "${CYAN}bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
 # --- 虚拟化与环境深度鉴定 ---
 # --- 系统版本深度探测 ---
@@ -217,7 +226,7 @@ fi
 
 echo -e "${YELLOW}[虚拟化与环境深度鉴定]${PLAIN}"
 print_menu_item "${CYAN}操作系统: ${os_type}" "${CYAN}环境类型: ${virt_result}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
 # 1. 基础硬件与内核协议栈
 echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
@@ -346,15 +355,15 @@ case "$tcp_cc" in
     *) cc_status="${YELLOW}${tcp_cc:-"?"}${PLAIN}" ;;
 esac
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-print_center "${GREEN}▶ 硬件配额与系统状态${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
+print_center "${GREEN}> 硬件配额与系统状态${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
 print_menu_item "${CYAN}CPU型号: ${cpu_model:-未知}" "${CYAN}CPU核心: ${display_cores}"
 print_menu_item "${CYAN}网络算法: ${cc_status}" "${CYAN}内存配额: ${mem_info}"
 print_menu_item "${CYAN}存储状态: $(get_rom_info_detailed)" 
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
 # --- 3. 进程审计 (增强版容错逻辑) ---
 echo -e "${YELLOW}[进程出站分流审计]${PLAIN}"
@@ -371,9 +380,9 @@ audit_config() {
         if ! command -v python3 &> /dev/null; then
             # Bash fallback: 简单 grep 检测
             if grep -qiE "wireguard|warp" "$conf_path" 2>/dev/null; then
-                echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口 (基础检测)${PLAIN}"
+                echo -e "出站: ${GREEN}[V] 检测到 WARP/隧道出口 (基础检测)${PLAIN}"
             else
-                echo -e "出站: ${RED}✘ 纯直连/普通代理 (python3未安装)${PLAIN}"
+                echo -e "出站: ${RED}[X] 纯直连/普通代理 (python3未安装)${PLAIN}"
             fi
             return
         fi
@@ -456,11 +465,11 @@ print('WARP' if w_rt else 'DIRECT')
 " 2>/dev/null)
 
         if [ "$result" == "WARP" ]; then
-            echo -e "出站: ${GREEN}✔ 检测到 WARP/隧道出口 (路由规则已生效)${PLAIN}"
+            echo -e "出站: ${GREEN}[V] 检测到 WARP/隧道出口 (路由规则已生效)${PLAIN}"
         elif [ "$result" == "DIRECT" ]; then
-            echo -e "出站: ${RED}✘ 纯直连出站 (未设置WARP出站或已被路由规则绕过)${PLAIN}"
+            echo -e "出站: ${RED}[X] 纯直连出站 (未设置WARP出站或已被路由规则绕过)${PLAIN}"
         else
-            echo -e "出站: ${YELLOW}⚠️ 配置文件解析失败或未使用标准格式${PLAIN}"
+            echo -e "出站: ${YELLOW}[!] 配置文件解析失败或未使用标准格式${PLAIN}"
         fi
     fi
 }
@@ -469,7 +478,7 @@ x_path=$(ps aux 2>/dev/null | grep -v grep | grep "/xray" | awk '{for(i=1;i<=NF;
 [ -n "$x_path" ] && audit_config "Xray" "$x_path"
 s_path=$(ps aux 2>/dev/null | grep -v grep | grep "/sing-box" | awk '{for(i=1;i<=NF;i++) if($i=="-c" || $i=="-config") {print $(i+1); break}}' | head -n1)
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
 # 4. IP 深度画像
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
@@ -487,7 +496,7 @@ get_ip_info() {
         local info=$(curl -4 -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
         echo -e "${PURPLE}[$version 网络]${PLAIN}"
         # 使用 OSC 8 超链接转义序列添加点击跳转功能
-        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\🔍 点此打开 ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
+        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\[?] 点此打开 ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
         if [[ "$info" == *"success"* ]]; then
             get_v() { echo "$info" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
             echo -e "地理位置 : ${GREEN}$(get_v "country") - $(get_v "city")${PLAIN} | ISP: $(get_v "isp")"
@@ -499,29 +508,29 @@ get_ip_info() {
 get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
-print_center "${GREEN}▶ 测试脚本合集${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
+print_center "${GREEN}> 测试脚本合集${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
-echo -e "${GREEN}▸ IP及解锁状态${PLAIN}"
+echo -e "${GREEN}- IP及解锁状态${PLAIN}"
 print_menu_item "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试"
 print_menu_item "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
 
-echo -e "${CYAN}▸ 网络测速${PLAIN}"
+echo -e "${CYAN}- 网络测速${PLAIN}"
 print_menu_item "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速"
 print_menu_item "${CYAN}7. nxtrace回程测试" "${CYAN}8. ludashi2020线路测试"
 print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试"
 
-echo -e "${PURPLE}▸ 性能测试${PLAIN}"
+echo -e "${PURPLE}- 性能测试${PLAIN}"
 print_menu_item "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试"
 print_menu_item "${PURPLE}13. 融合怪大测评" " "
 echo -e "${RED}0. 退出脚本${PLAIN}"
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 print_center "${SHORTCUT_MSG}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+echo -e "${BLUE}============================================================================================${PLAIN}"
 
 read -p "请输入数字选择: " test_choice
 
@@ -555,11 +564,11 @@ case "$test_choice" in
                 b = $speed_bytes
                 printf \"%.2f %.2f\", (b * 8) / 1000000, b / 1024 / 1024
             }")
-            echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
            echo -e "${GREEN}测速完成 (Plan B):${PLAIN}"
            echo -e "下载速度: ${YELLOW}${mbps} Mbps${PLAIN} (${GREEN}${mb_s} MB/s${PLAIN})"
            echo -e "测试节点: Cachefly Anycast (Global)"
-           echo -e "${BLUE}════════════════════════════════════════════════════════════════════════════════════════════${PLAIN}"
+           echo -e "${BLUE}============================================================================================${PLAIN}"
        else
            echo -e "${RED}方案 B 测试失败，请检查网络连接或 curl 是否安装。${PLAIN}"
        fi
