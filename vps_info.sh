@@ -212,6 +212,10 @@ else
         virt_result="LXC Container"
     elif command -v systemd-detect-virt >/dev/null 2>&1; then
         virt_result=$(systemd-detect-virt)
+        # 针对 OpenShift Virtualization 的特别探测
+        if [[ "$virt_result" == "kvm" ]] && grep -qi "kubevirt" /proc/cpuinfo 2>/dev/null; then
+            virt_result="OpenShift Virtualization (KubeVirt)"
+        fi
     else
         vendor=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)
         if [[ "$vendor" == *"QEMU"* || "$vendor" == *"Red Hat"* ]]; then
@@ -480,9 +484,9 @@ s_path=$(ps aux 2>/dev/null | grep -v grep | grep "/sing-box" | awk '{for(i=1;i<
 [ -n "$s_path" ] && audit_config "Sing-box" "$s_path"
 echo -e "${BLUE}============================================================================================${PLAIN}"
 
-# 4. IP 深度画像
+# --- 4. IP 深度画像 (并行优化) ---
 echo -e "${YELLOW}[IP 深度画像报告]${PLAIN}"
-get_ip_info() {
+get_ip_info_data() {
     local version=$1; local flag=$2
     local query_ip=""
     local endpoints=("https://api$flag.ipify.org" "https://ifconfig.io/ip")
@@ -494,8 +498,23 @@ get_ip_info() {
 
     if [[ -n "$query_ip" ]]; then
         local info=$(curl -4 -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
+        echo "$version|$query_ip|$info"
+    else
+        echo "$version|NONE|"
+    fi
+}
+
+# 并行执行 IP 获取
+tmp_ip_v4=$(get_ip_info_data "IPv4" "4") &
+tmp_ip_v6=$(get_ip_info_data "IPv6" "6") &
+wait
+
+display_ip_info() {
+    local raw_data="$1"
+    IFS='|' read -r version query_ip info <<< "$raw_data"
+    
+    if [[ "$query_ip" != "NONE" ]]; then
         echo -e "${PURPLE}[$version 网络]${PLAIN}"
-        # 使用 OSC 8 超链接转义序列添加点击跳转功能
         echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\[?] 点此打开 ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
         if [[ "$info" == *"success"* ]]; then
             get_v() { echo "$info" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
@@ -505,8 +524,10 @@ get_ip_info() {
         echo -e "${PURPLE}[$version 网络]${PLAIN} : ${RED}未检测到有效连接${PLAIN}"
     fi
 }
-get_ip_info "IPv4" "4"
-get_ip_info "IPv6" "6"
+
+display_ip_info "$tmp_ip_v4"
+display_ip_info "$tmp_ip_v6"
+
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
 print_center "${GREEN}> 测试脚本合集${PLAIN}"
