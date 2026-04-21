@@ -171,7 +171,7 @@ fi
 
 clear
 echo -e "${BLUE}============================================================================================${PLAIN}"
-print_center "[i] VPS 基础信息与测试工具箱"
+print_center "🛡️  VPS 基础信息与测试工具箱"
 print_center "${CYAN}bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)${PLAIN}"
 echo -e "${BLUE}============================================================================================${PLAIN}"
 
@@ -507,7 +507,7 @@ get_ip_info() {
     if [[ -n "$query_ip" ]]; then
         local info=$(curl -$flag -s --max-time 6 "http://ip-api.com/json/$query_ip?fields=status,country,city,isp,as,proxy,hosting")
         echo -e "${PURPLE}[$version 网络]${PLAIN}"
-        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\[?] 点此打开 ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
+        echo -e "出口地址 : ${CYAN}$query_ip${PLAIN}  ${YELLOW}[\033]8;;https://ping0.cc/ip/${query_ip}\033\\ ping0.cc 检测 \033]8;;\033\\]${PLAIN}"
         if [[ "$info" == *"success"* ]]; then
             get_v() { echo "$info" | sed 's/.*"'$1'":"\([^"]*\)".*/\1/' | sed 's/.*"'$1'":\([^,}]*\).*/\1/'; }
             echo -e "地理位置 : ${GREEN}$(get_v "country") - $(get_v "city")${PLAIN} | ISP: $(get_v "isp")"
