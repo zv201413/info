@@ -7,7 +7,7 @@ VPS 基础信息与测试工具箱 - 一键检测 VPS 硬件配额、网络质�
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh)
 ```
-### 方式二：使用快捷键（首次运行后生效）
+### 方式二：（root）使用快捷键（首次运行后生效）
 ```bash
 vps
 ```
