@@ -214,10 +214,29 @@ check_tools_menu() {
         )
     fi
     
-    # 检测缺失工具
+    # 检测缺失工具 - 支持多种检测方式
+    check_tool_exists() {
+        local tool="$1"
+        if command -v "$tool" &>/dev/null; then
+            return 0
+        fi
+        # 检查常见安装路径
+        case "$tool" in
+            nslookup) [ -x /usr/bin/nslookup ] || [ -x /bin/nslookup ] && return 0 ;;
+            ping) [ -x /bin/ping ] || [ -x /usr/bin/ping ] && return 0 ;;
+            ps) [ -x /bin/ps ] || [ -x /usr/bin/ps ] && return 0 ;;
+            find) [ -x /bin/find ] || [ -x /usr/bin/find ] && return 0 ;;
+            awk) [ -x /usr/bin/awk ] || [ -x /bin/awk ] && return 0 ;;
+            sed) [ -x /bin/sed ] || [ -x /usr/bin/sed ] && return 0 ;;
+            tar) [ -x /bin/tar ] || [ -x /usr/bin/tar ] && return 0 ;;
+            gzip) [ -x /bin/gzip ] || [ -x /usr/bin/gzip ] && return 0 ;;
+            *) return 1 ;;
+        esac
+    }
+    
     local missing_tools=()
     for tool in bash grep curl wget ps nslookup ping find sed awk tar gzip; do
-        if ! command -v "$tool" &> /dev/null; then
+        if ! check_tool_exists "$tool"; then
             missing_tools+=("$tool")
         fi
     done
