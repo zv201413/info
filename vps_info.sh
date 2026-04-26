@@ -951,8 +951,7 @@ print_menu_item_3 "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能�
 
 echo -e "${YELLOW}- 工具与修复${PLAIN}"
 print_menu_item_3 "${YELLOW}14. 基础工具安装" "${YELLOW}15. IPv6/DNS修复" " "
-
-print_center "${GREEN}0. 退出脚本${PLAIN}"
+echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
 print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
