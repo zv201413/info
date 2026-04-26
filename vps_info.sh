@@ -794,7 +794,7 @@ print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测
 echo -e "${PURPLE}- 性能测试${PLAIN}"
 print_menu_item "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试"
 print_menu_item "${PURPLE}13. 融合怪大测评" " "
-echo -e "${RED}0. 退出脚本${PLAIN}"
+print_center "${GREEN}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
 print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
