@@ -143,6 +143,159 @@ check_and_install_deps() {
 }
 check_and_install_deps
 
+# --- 环境检测：识别发行版 ---
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        echo "$ID"
+    elif [ -f /etc/alpine-release ]; then
+        echo "alpine"
+    elif [ -f /etc/debian_version ]; then
+        echo "debian"
+    elif [ -f /etc/redhat-release ]; then
+        echo "rhel"
+    else
+        echo "unknown"
+    fi
+}
+
+# --- 基础工具检测与安装 ---
+check_tools_menu() {
+    local os_type=$(detect_os)
+    local install_cmd=""
+    local pkg_manager=""
+    
+    if [ "$os_type" = "alpine" ]; then
+        install_cmd="apk add --no-cache"
+        pkg_manager="apk"
+    elif command -v apt-get &> /dev/null; then
+        install_cmd="apt-get install -y"
+        pkg_manager="apt"
+    elif command -v yum &> /dev/null; then
+        install_cmd="yum install -y"
+        pkg_manager="yum"
+    elif command -v dnf &> /dev/null; then
+        install_cmd="dnf install -y"
+        pkg_manager="dnf"
+    fi
+    
+    # 定义各发行版需要的工具
+    declare -A tool_packages
+    tool_packages=(
+        ["bash]="bash"
+        ["grep]="grep"
+        ["curl]="curl"
+        ["wget]="wget"
+        ["ps]="procps"
+        ["nslookup]="bind-tools"
+        ["ping]="iputils-ping"
+        ["find]="findutils"
+        ["sed]="sed"
+        ["awk]="gawk"
+        ["tar]="tar"
+        [" gzip]="bash"
+    )
+    
+    # Debian/Ubuntu 映射
+    if [ "$pkg_manager" = "apt" ]; then
+        tool_packages=(
+            ["bash]="bash"
+            ["grep]="grep"
+            ["curl]="curl"
+            ["wget]="wget"
+            ["ps]="procps"
+            ["nslookup]="dnsutils"
+            ["ping]="iputils-ping"
+            ["find]="findutils"
+            ["sed]="sed"
+            ["awk]="gawk"
+            ["tar]="tar"
+            ["gzip]="gzip"
+        )
+    fi
+    
+    # 检测缺失工具
+    local missing_tools=()
+    for tool in bash grep curl wget ps nslookup ping find sed awk tar gzip; do
+        if ! command -v "$tool" &> /dev/null; then
+            missing_tools+=("$tool")
+        fi
+    done
+    
+    # Alpine 额外检测
+    if [ "$os_type" = "alpine" ]; then
+        if ! ldconfig -p | grep -q libc.so.6 2>/dev/null; then
+            if ! ld-linux-x86-64.so.2 &>/dev/null; then
+                missing_tools+=("libc6-compat")
+            fi
+        fi
+    fi
+    
+    # 显示检测结果
+    clear
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    print_center "${YELLOW}基础环境检测与工具安装${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    echo -e "${CYAN}检测到系统: ${os_type}${PLAIN}"
+    echo -e "${CYAN}包管理器: ${pkg_manager:-未检测到}${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    
+    if [ ${#missing_tools[@]} -eq 0 ]; then
+        echo -e "${GREEN}[OK] 所有基础工具都已安装${PLAIN}"
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        read -p "按回车键继续..." dummy
+        return
+    fi
+    
+    echo -e "${YELLOW}[!] 检测到以下缺失工具:${PLAIN}"
+    echo -e "${RED}${missing_tools[*]}${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    echo -e "${GREEN}1. 安装所有缺失工具${PLAIN}"
+    echo -e "${CYAN}2. 选择性安装工具${PLAIN}"
+    echo -e "${YELLOW}3. 跳过安装${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    read -p "请输入选择: " choice
+    
+    case "$choice" in
+        1)
+            if [ -n "$install_cmd" ]; then
+                echo -e "${CYAN}正在安装所有缺失工具...${PLAIN}"
+                if [ "$os_type" = "alpine" ]; then
+                    apk update -q
+                    $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip libc6-compat 2>/dev/null
+                else
+                    $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip 2>/dev/null
+                fi
+                echo -e "${GREEN}[OK] 安装完成${PLAIN}"
+            else
+                echo -e "${RED}[!] 未检测到支持的包管理器，请手动安装${PLAIN}"
+            fi
+            ;;
+        2)
+            echo -e "${YELLOW}请输入要安装的工具（用空格分隔，直接回车取消）:${PLAIN}"
+            echo -e "${CYAN}可用工具: bash grep curl wget ps nslookup ping find sed awk tar gzip libc6-compat${PLAIN}"
+            read -p "请输入: " tools_to_install
+            if [ -n "$tools_to_install" ] && [ -n "$install_cmd" ]; then
+                echo -e "${CYAN}正在安装...${PLAIN}"
+                if [ "$os_type" = "alpine" ]; then
+                    apk update -q
+                    $install_cmd $tools_to_install 2>/dev/null
+                else
+                    $install_cmd $tools_to_install 2>/dev/null
+                fi
+                echo -e "${GREEN}[OK] 安装完成${PLAIN}"
+            fi
+            ;;
+        *)
+            echo -e "${YELLOW}[!] 跳过安装${PLAIN}"
+            ;;
+    esac
+    
+    read -p "按回车键继续..." dummy
+}
+
+check_tools_menu
+
 # --- 快捷键配置 ---
 if [ "$EUID" -eq 0 ]; then
     rm -f /usr/local/bin/vps
