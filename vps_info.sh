@@ -70,6 +70,30 @@ print_menu_item() {
     echo -e "${margin_spaces}${left}${padding_spaces}${gap_spaces}${right}"
 }
 
+print_menu_item_3() {
+    local left="$1"
+    local mid="$2"
+    local right="$3"
+    
+    local margin=5
+    local col_w=28
+    local gap=2
+    
+    local left_w=$(get_width "$left")
+    local mid_w=$(get_width "$mid")
+    local pad1=$((col_w - left_w))
+    local pad2=$((col_w - mid_w))
+    [ $pad1 -lt 0 ] && pad1=0
+    [ $pad2 -lt 0 ] && pad2=0
+    
+    local pad1_spaces=$(printf "%${pad1}s" "")
+    local pad2_spaces=$(printf "%${pad2}s" "")
+    local margin_spaces=$(printf "%${margin}s" "")
+    local gap_spaces=$(printf "%${gap}s" "")
+
+    echo -e "${margin_spaces}${left}${pad1_spaces}${gap_spaces}${mid}${pad2_spaces}${gap_spaces}${right}"
+}
+
 # --- 辅助函数：获取精简数据 ---
 get_uptime_simple() {
     awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%d天%d时%d分", d, h, m}' /proc/uptime
@@ -915,18 +939,19 @@ print_center "${GREEN}> 测试脚本合集${PLAIN}"
 echo -e "${BLUE}============================================================================================${PLAIN}"
 
 echo -e "${GREEN}- IP及解锁状态${PLAIN}"
-print_menu_item "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试"
-print_menu_item "${GREEN}3. yeahwu流媒体检测" "${GREEN}4. xykt_IP质量体检"
+print_menu_item_3 "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试" "${GREEN}3. yeahwu流媒体检测"
+print_menu_item_3 "${GREEN}4. xykt_IP质量体检" " " " "
 
 echo -e "${CYAN}- 网络测速${PLAIN}"
-print_menu_item "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速"
-print_menu_item "${CYAN}7. nxtrace回程测试" "${CYAN}8. ludashi2020线路测试"
-print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试"
+print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
+print_menu_item_3 "${CYAN}8. ludashi2020线路测试" "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试"
 
 echo -e "${PURPLE}- 性能测试${PLAIN}"
-print_menu_item "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试"
-print_menu_item "${PURPLE}13. 融合怪大测评" " "
-print_menu_item "${YELLOW}14. 基础工具安装" "${YELLOW}15. IPv6/DNS修复" "${PLAIN}"
+print_menu_item_3 "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试" "${PURPLE}13. 融合怪大测评"
+
+echo -e "${YELLOW}- 工具与修复${PLAIN}"
+print_menu_item_3 "${YELLOW}14. 基础工具安装" "${YELLOW}15. IPv6/DNS修复" " "
+
 print_center "${GREEN}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
