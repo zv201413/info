@@ -143,6 +143,120 @@ check_and_install_deps() {
 }
 check_and_install_deps
 
+# --- IPv6/DNS 修复功能 ---
+fix_ipv6_dns_menu() {
+    clear
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    print_center "${YELLOW}IPv6/DNS 修复工具${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    
+    # 检测当前 DNS 状态
+    echo -e "${CYAN}[1] 检测当前 DNS 配置${PLAIN}"
+    
+    # 检查是否有 IPv6 地址
+    local ipv6_addr=$(ip -6 addr show 2>/dev/null | grep "inet6" | grep "global" | head -n1 | awk '{print $2}' | cut -d'/' -f1)
+    
+    # 检查 resolv.conf
+    echo -e "\n${YELLOW}当前 /etc/resolv.conf:${PLAIN}"
+    cat /etc/resolv.conf 2>/dev/null | head -n10
+    
+    # 检查 IPv6 可用性
+    echo -e "\n${YELLOW}IPv6 状态:${PLAIN}"
+    if [ -n "$ipv6_addr" ]; then
+        echo -e "${GREEN}[OK] IPv6 地址: ${ipv6_addr}${PLAIN}"
+    else
+        echo -e "${RED}[!] 未检测到 IPv6 地址 (可能是 NAT 小鸡)${PLAIN}"
+    fi
+    
+    # 测试 DNS 解析
+    echo -e "\n${YELLOW}DNS 解析测试:${PLAIN}"
+    if command -v nslookup &>/dev/null; then
+        nslookup google.com 2>/dev/null | head -n5 || echo -e "${RED}DNS 解析失败${PLAIN}"
+    elif command -v dig &>/dev/null; then
+        dig +short google.com 2>/dev/null | head -n3 || echo -e "${RED}DNS 解析失败${PLAIN}"
+    else
+        echo -e "${YELLOW}请先安装基础工具 (选项14)${PLAIN}"
+    fi
+    
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    echo -e "${GREEN}1. 修复 DNS (写入 Google/DNS 公共 DNS)${PLAIN}"
+    echo -e "${CYAN}2. 配置 IPv6 转发 (NAT IPv6)${PLAIN}"
+    echo -e "${YELLOW}3. 查看更多 NAT6 配置示例${PLAIN}"
+    echo -e "${RED}0. 返回主菜单${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    read -p "请输入选择: " fix_choice
+    
+    case "$fix_choice" in
+        1)
+            echo -e "${CYAN}正在修复 DNS...${PLAIN}"
+            if [ -w /etc/resolv.conf ]; then
+                cat > /etc/resolv.conf << 'EOF'
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 2001:4860:4860::8888
+nameserver 2001:4860:4860::8844
+EOF
+                echo -e "${GREEN}[OK] DNS 已修复${PLAIN}"
+                echo -e "${CYAN}当前 DNS:${PLAIN}"
+                cat /etc/resolv.conf
+            else
+                echo -e "${RED}[!] 无写入权限，请使用 sudo 运行${PLAIN}"
+            fi
+            ;;
+        2)
+            echo -e "${CYAN}检测 IPv6 网络类型...${PLAIN}"
+            local has_ipv6_global=false
+            if ip -6 addr show 2>/dev/null | grep -q "inet6.*global"; then
+                has_ipv6_global=true
+            fi
+            
+            if [ "$has_ipv6_global" = "true" ]; then
+                echo -e "${GREEN}[OK] 已是全局 IPv6 地址${PLAIN}"
+            else
+                echo -e "${YELLOW}[!] 检测到 IPv6 NAT 环境${PLAIN}"
+                echo -e "${CYAN}配置 IPv6 转发...${PLAIN}"
+                
+                # 检查 sysctl 写入权限
+                if [ -w /proc/sys/net/ipv6/conf/all/forwarding ]; then
+                    echo 1 > /proc/sys/net/ipv6/conf/all/forwarding 2>/dev/null
+                    echo 1 > /proc/sys/net/ipv6/conf/default/forwarding 2>/dev/null
+                    echo -e "${GREEN}[OK] IPv6 转发已开启${PLAIN}"
+                else
+                    echo -e "${RED}[!] 无写入权限，请使用 sudo${PLAIN}"
+                fi
+            fi
+            ;;
+        3)
+            clear
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            print_center "${YELLOW}NAT IPv6 配置示例 (Hax/ChatGPT等)${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            echo -e "${CYAN}适用于 IPv6 NAT 小鸡的常见配置:${PLAIN}"
+            echo ""
+            echo -e "${YELLOW}1. 开启 IPv6 转发 (sysctl):${PLAIN}"
+            echo -e "${GREEN}   sysctl -w net.ipv6.conf.all.forwarding=1${PLAIN}"
+            echo -e "${GREEN}   sysctl -w net.ipv6.conf.default.forwarding=1${PLAIN}"
+            echo ""
+            echo -e "${YELLOW}2. 配置 NAT IPv6 (ip6tables):${PLAIN}"
+            echo -e "${GREEN}   ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE${PLAIN}"
+            echo ""
+            echo -e "${YELLOW}3. 持久化配置 (Debian/Ubuntu):${PLAIN}"
+            echo -e "${GREEN}   echo 'net.ipv6.conf.all.forwarding=1' >> /etc/sysctl.conf${PLAIN}"
+            echo -e "${GREEN}   echo 'net.ipv6.conf.default.forwarding=1' >> /etc/sysctl.conf${PLAIN}"
+            echo -e "${GREEN}   sysctl -p${PLAIN}"
+            echo ""
+            echo -e "${RED}注意: 需要 Root 权限执行${PLAIN}"
+            echo ""
+            read -p "按回车键返回..." dummy
+            ;;
+        *)
+            return
+            ;;
+    esac
+    
+    read -p "按回车键返回..." dummy
+}
+
 # --- 环境检测：识别发行版 ---
 detect_os() {
     if [ -f /etc/os-release ]; then
@@ -812,7 +926,7 @@ print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测
 echo -e "${PURPLE}- 性能测试${PLAIN}"
 print_menu_item "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试"
 print_menu_item "${PURPLE}13. 融合怪大测评" " "
-print_menu_item "${YELLOW}14. 基础工具安装" " "
+print_menu_item "${YELLOW}14. 基础工具安装" "${YELLOW}15. IPv6/DNS修复" "${PLAIN}"
 print_center "${GREEN}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -879,6 +993,7 @@ case "$test_choice" in
     12) clear; curl -Lso- bench.sh | bash ;;
     13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     14) clear; check_tools_menu ;;
+    15) clear; fix_ipv6_dns_menu ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
