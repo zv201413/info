@@ -159,7 +159,6 @@ detect_os() {
     fi
 }
 
-# --- 基础工具检测与安装 ---
 check_tools_menu() {
     local os_type=$(detect_os)
     local install_cmd=""
@@ -813,6 +812,7 @@ print_menu_item "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测
 echo -e "${PURPLE}- 性能测试${PLAIN}"
 print_menu_item "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试"
 print_menu_item "${PURPLE}13. 融合怪大测评" " "
+print_menu_item "${YELLOW}14. 基础工具安装" " "
 print_center "${GREEN}0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -878,6 +878,7 @@ case "$test_choice" in
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
     12) clear; curl -Lso- bench.sh | bash ;;
     13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
+    14) clear; check_tools_menu ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
