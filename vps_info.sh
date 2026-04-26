@@ -222,13 +222,22 @@ check_tools_menu() {
         fi
     done
     
-    # Alpine 额外检测
+    # Alpine 额外检测 libc6-compat（检查 glibc 兼容库）
     if [ "$os_type" = "alpine" ]; then
-        if ! ldconfig -p | grep -q libc.so.6 2>/dev/null; then
-            if ! ld-linux-x86-64.so.2 &>/dev/null; then
-                missing_tools+=("libc6-compat")
-            fi
+        local has_glibc=false
+        if ldconfig -p 2>/dev/null | grep -q "libc.so.6"; then
+            has_glibc=true
+        elif [ -f /lib/ld-linux-x86-64.so.2 ] || [ -f /lib64/ld-linux-x86-64.so.2 ]; then
+            has_glibc=true
         fi
+        if [ "$has_glibc" = "false" ]; then
+            missing_tools+=("libc6-compat")
+        fi
+    fi
+    
+    # 所有工具已安装，直接跳过
+    if [ ${#missing_tools[@]} -eq 0 ]; then
+        return
     fi
     
     # 显示检测结果
@@ -239,14 +248,6 @@ check_tools_menu() {
     echo -e "${CYAN}检测到系统: ${os_type}${PLAIN}"
     echo -e "${CYAN}包管理器: ${pkg_manager:-未检测到}${PLAIN}"
     echo -e "${BLUE}============================================================================================${PLAIN}"
-    
-    if [ ${#missing_tools[@]} -eq 0 ]; then
-        echo -e "${GREEN}[OK] 所有基础工具都已安装${PLAIN}"
-        echo -e "${BLUE}============================================================================================${PLAIN}"
-        read -p "按回车键继续..." dummy
-        return
-    fi
-    
     echo -e "${YELLOW}[!] 检测到以下缺失工具:${PLAIN}"
     echo -e "${RED}${missing_tools[*]}${PLAIN}"
     echo -e "${BLUE}============================================================================================${PLAIN}"
