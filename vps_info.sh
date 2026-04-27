@@ -316,57 +316,24 @@ check_tools_menu() {
         pkg_manager="dnf"
     fi
     
-    # 定义各发行版需要的工具
-    declare -A tool_packages
-    tool_packages=(
-        ["bash]="bash"
-        ["grep]="grep"
-        ["curl]="curl"
-        ["wget]="wget"
-        ["ps]="procps"
-        ["nslookup]="bind-tools"
-        ["ping]="iputils-ping"
-        ["find]="findutils"
-        ["sed]="sed"
-        ["awk]="gawk"
-        ["tar]="tar"
-        [" gzip]="bash"
-    )
-    
-    # Debian/Ubuntu 映射
-    if [ "$pkg_manager" = "apt" ]; then
-        tool_packages=(
-            ["bash]="bash"
-            ["grep]="grep"
-            ["curl]="curl"
-            ["wget]="wget"
-            ["ps]="procps"
-            ["nslookup]="dnsutils"
-            ["ping]="iputils-ping"
-            ["find]="findutils"
-            ["sed]="sed"
-            ["awk]="gawk"
-            ["tar]="tar"
-            ["gzip]="gzip"
-        )
-    fi
-    
-    # 检测缺失工具 - 支持多种检测方式
     check_tool_exists() {
         local tool="$1"
         if command -v "$tool" &>/dev/null; then
             return 0
         fi
-        # 检查常见安装路径
         case "$tool" in
+            bash)   [ -x /bin/bash ] || [ -x /usr/bin/bash ] && return 0 ;;
+            grep)   [ -x /bin/grep ] || [ -x /usr/bin/grep ] && return 0 ;;
+            curl)   [ -x /bin/curl ] || [ -x /usr/bin/curl ] && return 0 ;;
+            wget)   [ -x /bin/wget ] || [ -x /usr/bin/wget ] && return 0 ;;
+            ps)     [ -x /bin/ps ] || [ -x /usr/bin/ps ] || [ -x /usr/local/bin/ps ] && return 0 ;;
             nslookup) [ -x /usr/bin/nslookup ] || [ -x /bin/nslookup ] && return 0 ;;
-            ping) [ -x /bin/ping ] || [ -x /usr/bin/ping ] && return 0 ;;
-            ps) [ -x /bin/ps ] || [ -x /usr/bin/ps ] && return 0 ;;
-            find) [ -x /bin/find ] || [ -x /usr/bin/find ] && return 0 ;;
-            awk) [ -x /usr/bin/awk ] || [ -x /bin/awk ] && return 0 ;;
-            sed) [ -x /bin/sed ] || [ -x /usr/bin/sed ] && return 0 ;;
-            tar) [ -x /bin/tar ] || [ -x /usr/bin/tar ] && return 0 ;;
-            gzip) [ -x /bin/gzip ] || [ -x /usr/bin/gzip ] && return 0 ;;
+            ping)   [ -x /bin/ping ] || [ -x /usr/bin/ping ] || [ -x /sbin/ping ] && return 0 ;;
+            find)   [ -x /bin/find ] || [ -x /usr/bin/find ] || [ -x /usr/local/bin/find ] && return 0 ;;
+            sed)    [ -x /bin/sed ] || [ -x /usr/bin/sed ] || [ -x /usr/local/bin/sed ] && return 0 ;;
+            awk)    [ -x /usr/bin/awk ] || [ -x /bin/awk ] || [ -x /bin/gawk ] || [ -x /usr/bin/gawk ] && return 0 ;;
+            tar)    [ -x /bin/tar ] || [ -x /usr/bin/tar ] || [ -x /usr/local/bin/tar ] && return 0 ;;
+            gzip)   [ -x /bin/gzip ] || [ -x /usr/bin/gzip ] || [ -x /usr/local/bin/gzip ] && return 0 ;;
             *) return 1 ;;
         esac
     }
@@ -378,7 +345,6 @@ check_tools_menu() {
         fi
     done
     
-    # Alpine 额外检测 libc6-compat（检查 glibc 兼容库）
     if [ "$os_type" = "alpine" ]; then
         local has_glibc=false
         if ldconfig -p 2>/dev/null | grep -q "libc.so.6"; then
@@ -391,60 +357,208 @@ check_tools_menu() {
         fi
     fi
     
-    # 所有工具已安装，直接跳过
-    if [ ${#missing_tools[@]} -eq 0 ]; then
-        return
+    local env_issues=()
+    
+    if [ ! -d /proc/1 ]; then
+        env_issues+=("proc-fs: /proc 文件系统未挂载")
     fi
     
-    # 显示检测结果
+    if [ ! -d /sys/kernel ]; then
+        env_issues+=("sys-fs: /sys 文件系统未挂载或缺失")
+    fi
+    
+    if [ ! -c /dev/null ]; then
+        env_issues+=("dev-null: /dev/null 设备缺失")
+    fi
+    
+    if ! locale -a 2>/dev/null | grep -qi "utf8\|utf-8"; then
+        env_issues+=("locale: 缺少 UTF-8 locale 配置")
+    fi
+    
+    if [ ! -f /etc/localtime ] && [ -z "$TZ" ]; then
+        env_issues+=("timezone: 时区未配置")
+    fi
+    
     clear
     echo -e "${BLUE}============================================================================================${PLAIN}"
-    print_center "${YELLOW}基础环境检测与工具安装${PLAIN}"
+    print_center "${YELLOW}基础环境检测与修复${PLAIN}"
     echo -e "${BLUE}============================================================================================${PLAIN}"
     echo -e "${CYAN}检测到系统: ${os_type}${PLAIN}"
     echo -e "${CYAN}包管理器: ${pkg_manager:-未检测到}${PLAIN}"
     echo -e "${BLUE}============================================================================================${PLAIN}"
-    echo -e "${YELLOW}[!] 检测到以下缺失工具:${PLAIN}"
-    echo -e "${RED}${missing_tools[*]}${PLAIN}"
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        echo -e "${YELLOW}[缺失软件工具]${PLAIN}"
+        echo -e "${RED}  ${missing_tools[*]}${PLAIN}"
+        echo ""
+    fi
+    
+    if [ ${#env_issues[@]} -gt 0 ]; then
+        echo -e "${YELLOW}[环境问题]${PLAIN}"
+        for issue in "${env_issues[@]}"; do
+            echo -e "${RED}  - $issue${PLAIN}"
+        done
+        echo ""
+    fi
+    
+    if [ ${#missing_tools[@]} -eq 0 ] && [ ${#env_issues[@]} -eq 0 ]; then
+        echo -e "${GREEN}[OK] 所有检查通过，环境正常${PLAIN}"
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        read -p "按回车键继续..." dummy
+        return
+    fi
+    
     echo -e "${BLUE}============================================================================================${PLAIN}"
-    echo -e "${GREEN}1. 安装所有缺失工具${PLAIN}"
-    echo -e "${CYAN}2. 选择性安装工具${PLAIN}"
-    echo -e "${YELLOW}3. 跳过安装${PLAIN}"
+    echo -e "${GREEN}1. 全部修复 (安装工具+修复环境)${PLAIN}"
+    echo -e "${CYAN}2. 仅安装软件工具${PLAIN}"
+    echo -e "${CYAN}3. 仅修复环境问题${PLAIN}"
+    echo -e "${YELLOW}4. 查看修复方案详情${PLAIN}"
+    echo -e "${RED}0. 返回${PLAIN}"
     echo -e "${BLUE}============================================================================================${PLAIN}"
     read -p "请输入选择: " choice
     
+    fix_proc_sys() {
+        echo -e "${CYAN}正在修复 /proc 和 /sys 文件系统...${PLAIN}"
+        local mounted=false
+        
+        if [ ! -d /proc/1 ]; then
+            if mount -t proc none /proc 2>/dev/null; then
+                echo -e "${GREEN}[OK] /proc 已挂载${PLAIN}"
+                mounted=true
+            else
+                echo -e "${RED}[!] /proc 挂载失败 (需要 Root 权限)${PLAIN}"
+            fi
+        else
+            echo -e "${GREEN}[OK] /proc 已存在${PLAIN}"
+        fi
+        
+        if [ ! -d /sys/kernel ]; then
+            if mount -t sysfs none /sys 2>/dev/null; then
+                echo -e "${GREEN}[OK] /sys 已挂载${PLAIN}"
+                mounted=true
+            else
+                echo -e "${RED}[!] /sys 挂载失败 (需要 Root 权限)${PLAIN}"
+            fi
+        else
+            echo -e "${GREEN}[OK] /sys 已存在${PLAIN}"
+        fi
+        
+        [ "$mounted" = "true" ] || echo -e "${YELLOW}提示: 如果挂载失败，容器可能以非特权模式运行${PLAIN}"
+    }
+    
+    fix_locale() {
+        echo -e "${CYAN}正在修复 locale...${PLAIN}"
+        if [ "$os_type" = "alpine" ]; then
+            if [ -f /etc/apk/repositories ] && ! grep -q "community" /etc/apk/repositories; then
+                echo -e "${YELLOW}添加 community 源...${PLAIN}"
+                echo "http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER:-3.19}/community" >> /etc/apk/repositories 2>/dev/null
+            fi
+            apk add -q --no-cache musl-locales 2>/dev/null
+            export LC_ALL=C.UTF-8
+            export LANG=C.UTF-8
+        elif command -v locale-gen &>/dev/null; then
+            sed -i '/en_US.UTF-8/s/^#//g' /etc/locale.gen 2>/dev/null
+            sed -i '/C.UTF-8/s/^#//g' /etc/locale.gen 2>/dev/null
+            locale-gen 2>/dev/null
+            export LC_ALL=C.UTF-8
+            export LANG=C.UTF-8
+        fi
+        echo -e "${GREEN}[OK] locale 已修复${PLAIN}"
+    }
+    
+    fix_timezone() {
+        echo -e "${CYAN}正在修复时区...${PLAIN}"
+        if [ "$os_type" = "alpine" ]; then
+            apk add -q --no-cache tzdata 2>/dev/null
+        fi
+        if [ -f /usr/share/zoneinfo/Asia/Shanghai ]; then
+            ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime 2>/dev/null
+            echo "Asia/Shanghai" > /etc/timezone 2>/dev/null
+        elif [ -f /usr/share/zoneinfo/UTC ]; then
+            ln -sf /usr/share/zoneinfo/UTC /etc/localtime 2>/dev/null
+            echo "UTC" > /etc/timezone 2>/dev/null
+        fi
+        export TZ=Asia/Shanghai
+        echo -e "${GREEN}[OK] 时区已设置为 Asia/Shanghai${PLAIN}"
+    }
+    
     case "$choice" in
         1)
-            if [ -n "$install_cmd" ]; then
-                echo -e "${CYAN}正在安装所有缺失工具...${PLAIN}"
+            echo -e "${CYAN}=== 执行全部修复 ===${PLAIN}"
+            
+            if [ ${#missing_tools[@]} -gt 0 ] && [ -n "$install_cmd" ]; then
+                echo -e "${CYAN}正在安装软件工具...${PLAIN}"
                 if [ "$os_type" = "alpine" ]; then
-                    apk update -q
-                    $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip libc6-compat 2>/dev/null
+                    apk update
+                    $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip libc6-compat tzdata 2>/dev/null
                 else
                     $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip 2>/dev/null
                 fi
-                echo -e "${GREEN}[OK] 安装完成${PLAIN}"
-            else
-                echo -e "${RED}[!] 未检测到支持的包管理器，请手动安装${PLAIN}"
+                echo -e "${GREEN}[OK] 软件工具安装完成${PLAIN}"
             fi
+            
+            fix_proc_sys
+            fix_locale
+            fix_timezone
+            echo -e "${GREEN}[OK] 全部修复完成! 请重新运行脚本${PLAIN}"
             ;;
         2)
-            echo -e "${YELLOW}请输入要安装的工具（用空格分隔，直接回车取消）:${PLAIN}"
-            echo -e "${CYAN}可用工具: bash grep curl wget ps nslookup ping find sed awk tar gzip libc6-compat${PLAIN}"
-            read -p "请输入: " tools_to_install
-            if [ -n "$tools_to_install" ] && [ -n "$install_cmd" ]; then
-                echo -e "${CYAN}正在安装...${PLAIN}"
+            if [ ${#missing_tools[@]} -gt 0 ] && [ -n "$install_cmd" ]; then
+                echo -e "${CYAN}正在安装软件工具...${PLAIN}"
                 if [ "$os_type" = "alpine" ]; then
-                    apk update -q
-                    $install_cmd $tools_to_install 2>/dev/null
+                    apk update
+                    $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip libc6-compat
                 else
-                    $install_cmd $tools_to_install 2>/dev/null
+                    $install_cmd bash grep curl wget procps bind-tools iputils-ping findutils sed gawk tar gzip
                 fi
                 echo -e "${GREEN}[OK] 安装完成${PLAIN}"
+            else
+                echo -e "${GREEN}[OK] 所有软件工具已安装${PLAIN}"
             fi
             ;;
+        3)
+            fix_proc_sys
+            fix_locale
+            fix_timezone
+            ;;
+        4)
+            clear
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            print_center "${YELLOW}修复方案详情${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            
+            echo -e "${YELLOW}1. /proc 文件系统${PLAIN}"
+            echo -e "   命令: mount -t proc none /proc"
+            echo -e "   说明: 挂载 proc 文件系统，提供进程信息"
+            echo -e "   权限: 需要 Root 或特权容器"
+            echo ""
+            
+            echo -e "${YELLOW}2. /sys 文件系统${PLAIN}"
+            echo -e "   命令: mount -t sysfs none /sys"
+            echo -e "   说明: 挂载 sys 文件系统，提供内核信息"
+            echo ""
+            
+            echo -e "${YELLOW}3. Locale 配置${PLAIN}"
+            echo -e "   Alpine: apk add musl-locales"
+            echo -e "   Debian: apt-get install locales && locale-gen"
+            echo ""
+            
+            echo -e "${YELLOW}4. 时区配置${PLAIN}"
+            echo -e "   设置: ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime"
+            echo ""
+            
+            echo -e "${YELLOW}5. libc6-compat (Alpine)${PLAIN}"
+            echo -e "   命令: apk add --no-cache libc6-compat"
+            echo -e "   说明: 提供 glibc 兼容性"
+            echo ""
+            
+            echo -e "${RED}注意: 如果挂载 /proc /sys 失败，容器需要 --privileged${PLAIN}"
+            echo ""
+            read -p "按回车键返回..." dummy
+            return
+            ;;
         *)
-            echo -e "${YELLOW}[!] 跳过安装${PLAIN}"
+            return
             ;;
     esac
     
