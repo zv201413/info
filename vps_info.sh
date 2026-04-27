@@ -96,7 +96,11 @@ print_menu_item_3() {
 
 # --- 辅助函数：获取精简数据 ---
 get_uptime_simple() {
-    awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%d天%d时%d分", d, h, m}' /proc/uptime
+    if [ -r /proc/uptime ]; then
+        awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%d天%d时%d分", d, h, m}' /proc/uptime 2>/dev/null
+    else
+        echo "未知"
+    fi
 }
 
 get_mem_simple() {
@@ -104,7 +108,11 @@ get_mem_simple() {
     if [ -n "$mem_limit_bytes" ] && [ "$mem_limit_bytes" -lt 1099511627776 ]; then
         echo "$((mem_limit_bytes / 1024 / 1024)) MB"
     else
-        echo "$(free -m 2>/dev/null | awk '/Mem:/ {print $2}') MB"
+        if [ -r /proc/meminfo ]; then
+            echo "$(free -m 2>/dev/null | awk '/Mem:/ {print $2}') MB"
+        else
+            echo "未知"
+        fi
     fi
 }
 
