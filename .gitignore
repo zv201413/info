@@ -1,0 +1,19 @@
+# .gitignore
+
+# 本地知识库
+_Archive/
+_Notebook/
+
+# 元数据
+manifest.yaml
+archive_gen.py
+deploy.sh
+
+# 常规忽略
+node_modules/
+.env
+*.log
+*.tmp
+
+# Windows 垃圾文件
+*:Zone.Identifier
