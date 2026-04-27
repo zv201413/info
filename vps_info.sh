@@ -565,8 +565,6 @@ check_tools_menu() {
     read -p "按回车键继续..." dummy
 }
 
-check_tools_menu
-
 # --- 快捷键配置 ---
 if [ "$EUID" -eq 0 ]; then
     rm -f /usr/local/bin/vps
