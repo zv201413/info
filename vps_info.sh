@@ -658,14 +658,22 @@ echo -e "${BLUE}================================================================
 echo -e "${YELLOW}[硬件配额与内核审计]${PLAIN}"
 
 # 获取 CPU 型号
-cpu_model=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
+cpu_model=""
+if [ -f /proc/cpuinfo ]; then
+    cpu_model=$(grep "model name" /proc/cpuinfo 2>/dev/null | head -n1 | cut -d':' -f2 | xargs)
+fi
 [ -z "$cpu_model" ] && cpu_model=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
+[ -z "$cpu_model" ] && cpu_model="未知"
 
 # --- CPU 配额审计逻辑 ---
 if [ "$os_type" = "FreeBSD" ]; then
     display_cores="$(sysctl -n hw.ncpu) Core(s)"
 else
-    cpu_total=$(grep -c ^processor /proc/cpuinfo)
+    cpu_total=1
+    if [ -f /proc/cpuinfo ]; then
+        cpu_total=$(grep -c ^processor /proc/cpuinfo 2>/dev/null)
+        [ -z "$cpu_total" ] && cpu_total=1
+    fi
     nproc_usable=$(nproc 2>/dev/null || echo $cpu_total)
     limit_cores=""
 
@@ -727,19 +735,27 @@ elif [ -d /proc/vz ]; then
 else
     # Linux 深度审计：取 Cgroup 限制与系统 MemTotal 的最小值
     cgroup_limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || cat /sys/fs/cgroup/memory.max 2>/dev/null)
-    sys_total_bytes=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') * 1024 ))
+    
+    if [ -f /proc/meminfo ]; then
+        mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+        [ -n "$mem_total" ] && sys_total_bytes=$(( mem_total * 1024 )) || sys_total_bytes=0
+    else
+        sys_total_bytes=0
+    fi
     
     # 过滤掉 Cgroup 默认的极大值 (1TB 阈值) 且确保是数字进行比较
-    if [[ "$cgroup_limit" =~ ^[0-9]+$ ]] && [ "$cgroup_limit" -lt 1099511627776 ] && [ "$cgroup_limit" -lt "$sys_total_bytes" ]; then
+    if [[ "$cgroup_limit" =~ ^[0-9]+$ ]] && [ "$cgroup_limit" -lt 1099511627776 ] && [ "$sys_total_bytes" -gt 0 ] && [ "$cgroup_limit" -lt "$sys_total_bytes" ]; then
         true_mem=$((cgroup_limit / 1024 / 1024))
         mem_info="${GREEN}${true_mem} MB (Cgroup 真实配额)${PLAIN}"
-    else
+    elif [ "$sys_total_bytes" -gt 0 ]; then
         true_mem=$((sys_total_bytes / 1024 / 1024))
         if [[ "$virt_result" == *"Container"* ]]; then
             mem_info="${GREEN}${true_mem} MB (容器分配配额)${PLAIN}"
         else
             mem_info="${GREEN}${true_mem} MB (物理/虚拟总量)${PLAIN}"
         fi
+    else
+        mem_info="${YELLOW}未知${PLAIN}"
     fi
 fi
 
