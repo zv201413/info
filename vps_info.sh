@@ -1,41 +1,5 @@
 #!/bin/bash
-# 强制开启兼容性语言环境
-if locale -a | grep -q "C.utf8"; then
-    export LANG=C.UTF-8
-    export LC_ALL=C.UTF-8
-elif locale -a | grep -q "en_US.utf8"; then
-    export LANG=en_US.UTF-8
-    export LC_ALL=en_US.UTF-8
-else
-    export LANG=C
-    export LC_ALL=C
-fi
-
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-PLAIN='\033[0m'
-
-# --- 极简环境静默修复 ---
-auto_fix_env() {
-    if [ "$EUID" -eq 0 ]; then
-        # 尝试挂载 /proc
-        if [ ! -d /proc/1 ]; then
-            mount -t proc proc /proc 2>/dev/null
-        fi
-        # 尝试挂载 /sys
-        if [ ! -d /sys/kernel ]; then
-            mount -t sysfs sysfs /sys 2>/dev/null
-        fi
-    fi
-}
-auto_fix_env
-
-# --- 沙盒/容器环境检测 + 权限适配 ---
+# --- 环境检测函数 ---
 is_container_env() {
     [ -f "/.dockerenv" ] && return 0
     grep -q "container=lxc\|docker\|kubepods" /proc/1/cgroup 2>/dev/null && return 0
@@ -71,25 +35,21 @@ run_nexttrace() {
     local mode=""
     local has_from=0
 
-    # 检测是否已传入 --from 参数
     for arg in $args; do
         [ "$arg" = "--from" ] && has_from=1 && break
     done
 
-    # 如果调用者已指定 --from，直接执行
     if [ $has_from -eq 1 ]; then
-        echo -e "${CYAN}[模式] API 模式 (用户指定)${PLAIN}"
+        echo -e "${CYAN}[模式] API 模式 (Globalping)${PLAIN}"
         nexttrace $args
         return 0
     fi
 
-    # 第一层：尝试 API 模式 (默认从香港发起)
     echo -e "${CYAN}[模式] 尝试 API 模式 (Globalping)${PLAIN}"
     if nexttrace --from hong-kong $args 2>/dev/null; then
         return 0
     fi
 
-    # 第二层：回退到本地模式
     echo -e "${YELLOW}[回退] API 不可用，尝试本地模式${PLAIN}"
 
     if command -v nali &>/dev/null; then
@@ -143,6 +103,39 @@ run_mtr() {
         mtr $args
     fi
 }
+
+run_reverse_trace() {
+    local server_ip="$1"
+    local node="$2"
+    local node_name="$3"
+
+    printf "%-70s\n" "-" | sed 's/\s/-/g'
+    echo -e "${GREEN}${node_name} → 本机${PLAIN}"
+    run_nexttrace --from ${node} $server_ip
+    printf "%-70s\n" "-" | sed 's/\s/-/g'
+    echo
+}
+
+# 强制开启兼容性语言环境
+if locale -a | grep -q "C.utf8"; then
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+elif locale -a | grep -q "en_US.utf8"; then
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+else
+    export LANG=C
+    export LC_ALL=C
+fi
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+PLAIN='\033[0m'
 
 # --- 核心对齐引擎 (简化版) ---
 WIDTH=92
@@ -1263,11 +1256,31 @@ case "$test_choice" in
     6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
 7)
         clear
-        curl nxtrace.org/nt | bash
-        run_nexttrace --fast-trace --tcp
+        if [ ! -f "/usr/local/bin/nexttrace" ]; then
+            curl nxtrace.org/nt | bash
+        fi
+
+        if is_container_env; then
+            echo -e "${CYAN}[容器环境] 正在获取本机公网 IP...${PLAIN}"
+            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
+            if [ -z "$SERVER_IP" ]; then
+                echo -e "${RED}[错误] 无法获取本机公网 IP${PLAIN}"
+                exit 1
+            fi
+            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+            echo -e "${CYAN}从国内节点反向探测本机回程路由...${PLAIN}"
+            cn_nodes=(beijing shanghai guangzhou hangzhou)
+            cn_names=(北京 上海 广州 杭州)
+            for i in "${!cn_nodes[@]}"; do
+                run_reverse_trace "$SERVER_IP" "${cn_nodes[$i]}" "${cn_names[$i]}"
+            done
+        else
+            echo -e "${CYAN}[正常环境] 启动快速路由检测${PLAIN}"
+            run_nexttrace --fast-trace --tcp
+        fi
         ;;
-    8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
-    9)
+     8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
+     9)
         clear
         if ! command -v mtr &>/dev/null; then
             echo -e "${YELLOW}正在安装 mtr...${PLAIN}"
@@ -1315,35 +1328,32 @@ case "$test_choice" in
         rm -f /tmp/traceroute_testlog
         echo -e "\n——————————————————————————————\n本脚本测试结果为TCP回程路由,非ICMP回程路由 仅供参考,以最新IP段为准 谢谢\n"
         ;;
-10)
+    10)
         clear
-        if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
+        if ! command -v wget &>/dev/null; then apt-get install -y wget || yum install -y wget; fi
         if [ ! -f "/usr/local/bin/nexttrace" ]; then
             curl nxtrace.org/nt | bash
         fi
 
-        echo -e "${CYAN}[信息] 获取本机公网 IP...${PLAIN}"
-        SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
-
-        if [ -z "$SERVER_IP" ]; then
-            echo -e "${RED}[错误] 无法获取本机公网 IP，请检查网络连接${PLAIN}"
-            exit 1
-        fi
-
-        echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
-        echo -e "${CYAN}开始全国反向路由测试 (从国内探测本机)${PLAIN}"
-        echo
-
-        cn_nodes=(beijing shanghai guangzhou hangzhou chengdu wuhan)
-        cn_names=(北京 上海 广州 杭州 成都 武汉)
-
-        for i in "${!cn_nodes[@]}"; do
-            printf "%-70s\n" "-" | sed 's/\s/-/g'
-            echo -e "${GREEN}${cn_names[$i]} → 本机${PLAIN}"
-            run_nexttrace --from ${cn_nodes[$i]} $SERVER_IP
-            printf "%-70s\n" "-" | sed 's/\s/-/g'
+        if is_container_env; then
+            echo -e "${CYAN}[容器环境] 正在获取本机公网 IP...${PLAIN}"
+            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
+            if [ -z "$SERVER_IP" ]; then
+                echo -e "${RED}[错误] 无法获取本机公网 IP${PLAIN}"
+                exit 1
+            fi
+            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+            echo -e "${CYAN}开始全国反向路由测试 (从国内探测本机)${PLAIN}"
             echo
-        done
+            cn_nodes=(beijing shanghai guangzhou hangzhou chengdu wuhan)
+            cn_names=(北京 上海 广州 杭州 成都 武汉)
+            for i in "${!cn_nodes[@]}"; do
+                run_reverse_trace "$SERVER_IP" "${cn_nodes[$i]}" "${cn_names[$i]}"
+            done
+        else
+            echo -e "${CYAN}[正常环境] 启动 besttrace 路由测试${PLAIN}"
+            wget -qO- git.io/besttrace | bash
+        fi
         ;;
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
     12) clear; curl -Lso- bench.sh | bash ;;
