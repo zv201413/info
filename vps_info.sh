@@ -20,6 +20,101 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
+# --- 极简环境静默修复 ---
+auto_fix_env() {
+    if [ "$EUID" -eq 0 ]; then
+        # 尝试挂载 /proc
+        if [ ! -d /proc/1 ]; then
+            mount -t proc proc /proc 2>/dev/null
+        fi
+        # 尝试挂载 /sys
+        if [ ! -d /sys/kernel ]; then
+            mount -t sysfs sysfs /sys 2>/dev/null
+        fi
+    fi
+}
+auto_fix_env
+
+# --- 沙盒/容器环境检测 + 权限适配 ---
+is_container_env() {
+    [ -f "/.dockerenv" ] && return 0
+    grep -q "container=lxc\|docker\|kubepods" /proc/1/cgroup 2>/dev/null && return 0
+    [ -n "$container" ] && return 0
+    return 1
+}
+
+can_use_sudo() {
+    command -v sudo &>/dev/null && sudo -n true 2>/dev/null
+}
+
+run_nexttrace() {
+    local args="$@"
+    local use_sudo=0
+    local use_unprivileged=0
+
+    if is_container_env; then
+        if can_use_sudo; then
+            use_sudo=1
+            echo -e "${YELLOW}[容器环境] 检测到 sudo 权限，使用特权模式${PLAIN}"
+        else
+            use_unprivileged=1
+            echo -e "${YELLOW}[容器环境] 无 sudo 权限，使用 UDP 非特权模式${PLAIN}"
+        fi
+    else
+        if ! nexttrace $args 2>/dev/null; then
+            if can_use_sudo; then
+                use_sudo=1
+                echo -e "${YELLOW}[权限不足] 尝试使用 sudo 权限${PLAIN}"
+            else
+                use_unprivileged=1
+                echo -e "${YELLOW}[权限不足] 尝试 UDP 非特权模式${PLAIN}"
+            fi
+        fi
+    fi
+
+    if [ $use_sudo -eq 1 ]; then
+        sudo nexttrace $args
+    elif [ $use_unprivileged -eq 1 ]; then
+        nexttrace -u $args
+    else
+        nexttrace $args
+    fi
+}
+
+run_mtr() {
+    local args="$@"
+    local use_sudo=0
+    local use_unprivileged=0
+
+    if is_container_env; then
+        if can_use_sudo; then
+            use_sudo=1
+            echo -e "${YELLOW}[容器环境] 检测到 sudo 权限，使用特权模式${PLAIN}"
+        else
+            use_unprivileged=1
+            echo -e "${YELLOW}[容器环境] 无 sudo 权限，使用 UDP 模式${PLAIN}"
+        fi
+    else
+        if ! mtr $args 2>/dev/null; then
+            if can_use_sudo; then
+                use_sudo=1
+                echo -e "${YELLOW}[权限不足] 尝试使用 sudo 权限${PLAIN}"
+            else
+                use_unprivileged=1
+                echo -e "${YELLOW}[权限不足] 尝试 UDP 模式${PLAIN}"
+            fi
+        fi
+    fi
+
+    if [ $use_sudo -eq 1 ]; then
+        sudo mtr $args
+    elif [ $use_unprivileged -eq 1 ]; then
+        mtr -u $args
+    else
+        mtr $args
+    fi
+}
+
 # --- 核心对齐引擎 (简化版) ---
 WIDTH=92
 
@@ -1137,18 +1232,77 @@ case "$test_choice" in
        fi
        ;;
     6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
-    7) 
-       clear
-       curl nxtrace.org/nt | bash
-       nexttrace --fast-trace --tcp
-       ;;
+7)
+        clear
+        curl nxtrace.org/nt | bash
+        run_nexttrace --fast-trace --tcp
+        ;;
     8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
-    9) clear; curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh | bash ;;
-    10) 
-       clear
-       if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
-       wget -qO- git.io/besttrace | bash 
-       ;;
+    9)
+        clear
+        if ! command -v mtr &>/dev/null; then
+            echo -e "${YELLOW}正在安装 mtr...${PLAIN}"
+            apt-get update -y && apt-get install mtr -y || yum clean all && yum makecache && yum install mtr -y
+        fi
+
+        iplise=(219.141.136.12 202.106.50.1 221.179.155.161 202.96.209.133 210.22.97.1 211.136.112.200 58.60.188.222 210.21.196.6 120.196.165.24)
+        iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海移动 深圳电信 深圳联通 深圳移动)
+
+        echo -e "\n正在测试,请稍等..."
+        echo -e "——————————————————————————————\n"
+
+        for i in {0..8}; do
+            run_mtr -r -n --tcp ${iplise[$i]} > /tmp/traceroute_testlog 2>/dev/null
+
+            if grep -q "59\.43\." /tmp/traceroute_testlog 2>/dev/null; then
+                if grep -q "202\.97\." /tmp/traceroute_testlog 2>/dev/null; then
+                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;32m电信CN2 GT\033[0m"
+                else
+                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;31m电信CN2 GIA\033[0m"
+                fi
+            elif grep -q "202\.97\." /tmp/traceroute_testlog 2>/dev/null; then
+                if grep -q "219\.158\." /tmp/traceroute_testlog 2>/dev/null; then
+                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;33m联通169\033[0m"
+                else
+                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;34m电信163\033[0m"
+                fi
+            elif grep -q "218\.105\." /tmp/traceroute_testlog 2>/dev/null; then
+                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;35m联通9929\033[0m"
+            elif grep -q "219\.158\." /tmp/traceroute_testlog 2>/dev/null; then
+                if grep -q "219\.158\.113\." /tmp/traceroute_testlog 2>/dev/null; then
+                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;33m联通AS4837\033[0m"
+                else
+                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;33m联通169\033[0m"
+                fi
+            elif grep -q "223\.120\." /tmp/traceroute_testlog 2>/dev/null; then
+                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;35m移动CMI\033[0m"
+            elif grep -q "221\.183\." /tmp/traceroute_testlog 2>/dev/null; then
+                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;35m移动cmi\033[0m"
+            else
+                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:其他"
+            fi
+        done
+
+        rm -f /tmp/traceroute_testlog
+        echo -e "\n——————————————————————————————\n本脚本测试结果为TCP回程路由,非ICMP回程路由 仅供参考,以最新IP段为准 谢谢\n"
+        ;;
+10)
+        clear
+        if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
+        if [ ! -f "/usr/local/bin/nexttrace" ]; then
+            curl nxtrace.org/nt | bash
+        fi
+
+        ip_list=(219.141.147.210 202.96.209.133 58.60.188.222 202.106.50.1 210.22.97.1 210.21.196.6 221.179.155.161 211.136.112.200 120.196.165.24 202.112.14.151)
+        ip_addr=(北京电信 上海电信 深圳电信 北京联通 上海联通 深圳联通 北京移动 上海移动 深圳移动 成都教育网)
+
+        for i in {0..9}; do
+            printf "%-70s\n" "-" | sed 's/\s/-/g'
+            echo "${ip_addr[$i]}"
+            run_nexttrace -M ${ip_list[$i]}
+            printf "%-70s\n" "-" | sed 's/\s/-/g'
+        done
+        ;;
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
     12) clear; curl -Lso- bench.sh | bash ;;
     13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
