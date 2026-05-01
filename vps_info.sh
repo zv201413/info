@@ -1309,14 +1309,27 @@ case "$test_choice" in
             curl nxtrace.org/nt | bash
         fi
 
-        ip_list=(219.141.147.210 202.96.209.133 58.60.188.222 202.106.50.1 210.22.97.1 210.21.196.6 221.179.155.161 211.136.112.200 120.196.165.24 202.112.14.151)
-        ip_addr=(北京电信 上海电信 深圳电信 北京联通 上海联通 深圳联通 北京移动 上海移动 深圳移动 成都教育网)
+        echo -e "${CYAN}[信息] 获取本机公网 IP...${PLAIN}"
+        SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
 
-        for i in {0..9}; do
+        if [ -z "$SERVER_IP" ]; then
+            echo -e "${RED}[错误] 无法获取本机公网 IP，请检查网络连接${PLAIN}"
+            exit 1
+        fi
+
+        echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+        echo -e "${CYAN}开始全国反向路由测试 (从国内探测本机)${PLAIN}"
+        echo
+
+        cn_nodes=(beijing shanghai guangzhou hangzhou chengdu wuhan)
+        cn_names=(北京 上海 广州 杭州 成都 武汉)
+
+        for i in "${!cn_nodes[@]}"; do
             printf "%-70s\n" "-" | sed 's/\s/-/g'
-            echo "${ip_addr[$i]}"
-            run_nexttrace -M ${ip_list[$i]}
+            echo -e "${GREEN}${cn_names[$i]} → 本机${PLAIN}"
+            run_nexttrace --from ${cn_nodes[$i]} $SERVER_IP
             printf "%-70s\n" "-" | sed 's/\s/-/g'
+            echo
         done
         ;;
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
