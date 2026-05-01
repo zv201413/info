@@ -47,37 +47,53 @@ can_use_sudo() {
     command -v sudo &>/dev/null && sudo -n true 2>/dev/null
 }
 
+install_nali() {
+    if command -v nali &>/dev/null; then
+        return 0
+    fi
+    echo -e "${YELLOW}[安装] nali 未安装，正在尝试安装...${PLAIN}"
+    local arch=$(uname -m)
+    local nali_arch="amd64"
+    [ "$arch" = "aarch64" ] && nali_arch="arm64"
+
+    if curl -sL "https://github.com/zu1k/nali/releases/download/v0.8.1/nali-linux-${nali_arch}-v0.8.1.gz" -o /tmp/nali.gz 2>/dev/null; then
+        gzip -d -f /tmp/nali.gz 2>/dev/null
+        chmod +x /tmp/nali && mv /tmp/nali /usr/local/bin/nali 2>/dev/null
+        echo -e "${GREEN}[完成] nali 安装成功${PLAIN}"
+    else
+        echo -e "${RED}[失败] nali 安装失败，请手动安装${PLAIN}"
+        return 1
+    fi
+}
+
 run_nexttrace() {
     local args="$@"
-    local use_sudo=0
-    local use_unprivileged=0
+    local mode=""
 
-    if is_container_env; then
-        if can_use_sudo; then
-            use_sudo=1
-            echo -e "${YELLOW}[容器环境] 检测到 sudo 权限，使用特权模式${PLAIN}"
-        else
-            use_unprivileged=1
-            echo -e "${YELLOW}[容器环境] 无 sudo 权限，使用 UDP 非特权模式${PLAIN}"
-        fi
-    else
-        if ! nexttrace $args 2>/dev/null; then
-            if can_use_sudo; then
-                use_sudo=1
-                echo -e "${YELLOW}[权限不足] 尝试使用 sudo 权限${PLAIN}"
-            else
-                use_unprivileged=1
-                echo -e "${YELLOW}[权限不足] 尝试 UDP 非特权模式${PLAIN}"
-            fi
-        fi
+    # 第一层：尝试 API 模式
+    echo -e "${CYAN}[模式] 尝试 API 模式 (Globalping)${PLAIN}"
+    if nexttrace --from hong-kong $args 2>/dev/null; then
+        return 0
     fi
 
-    if [ $use_sudo -eq 1 ]; then
-        sudo nexttrace $args
-    elif [ $use_unprivileged -eq 1 ]; then
-        nexttrace -u $args
+    # 第二层：回退到本地模式
+    echo -e "${YELLOW}[回退] API 不可用，尝试本地模式${PLAIN}"
+
+    if command -v nali &>/dev/null; then
+        mode="本地模式 + nali 离线解析"
+        echo -e "${CYAN}[模式] $mode${PLAIN}"
+        nexttrace -M $args 2>/dev/null | nali
     else
-        nexttrace $args
+        install_nali
+        if command -v nali &>/dev/null; then
+            mode="本地模式 + nali 离线解析"
+            echo -e "${CYAN}[模式] $mode${PLAIN}"
+            nexttrace -M $args 2>/dev/null | nali
+        else
+            mode="纯本地模式 (无 nali)"
+            echo -e "${CYAN}[模式] $mode${PLAIN}"
+            nexttrace -M $args 2>/dev/null
+        fi
     fi
 }
 
