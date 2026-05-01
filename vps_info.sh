@@ -69,8 +69,21 @@ install_nali() {
 run_nexttrace() {
     local args="$@"
     local mode=""
+    local has_from=0
 
-    # 第一层：尝试 API 模式
+    # 检测是否已传入 --from 参数
+    for arg in $args; do
+        [ "$arg" = "--from" ] && has_from=1 && break
+    done
+
+    # 如果调用者已指定 --from，直接执行
+    if [ $has_from -eq 1 ]; then
+        echo -e "${CYAN}[模式] API 模式 (用户指定)${PLAIN}"
+        nexttrace $args
+        return 0
+    fi
+
+    # 第一层：尝试 API 模式 (默认从香港发起)
     echo -e "${CYAN}[模式] 尝试 API 模式 (Globalping)${PLAIN}"
     if nexttrace --from hong-kong $args 2>/dev/null; then
         return 0
