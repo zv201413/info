@@ -1237,10 +1237,15 @@ read -p "请输入数字选择: " test_choice
 case "$test_choice" in
     1) clear; bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh) ;;
     2) clear; bash <(curl -L -s check.unlock.media) ;;
-    3) 
+    3)
        clear
-       if ! command -v wget &> /dev/null; then apt-get install -y wget || yum install -y wget; fi
-       wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash 
+       if ! command -v wget &>/dev/null; then
+           if command -v apt-get &>/dev/null; then apt-get update -y && apt-get install -y wget
+           elif command -v apk &>/dev/null; then apk add wget
+           elif command -v yum &>/dev/null; then yum install -y wget
+           fi
+       fi
+       wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash
        ;;
     4) clear; bash <(curl -Ls IP.Check.Place) ;;
     5) clear
@@ -1307,7 +1312,13 @@ case "$test_choice" in
         clear
         if ! command -v mtr &>/dev/null; then
             echo -e "${YELLOW}正在安装 mtr...${PLAIN}"
-            apt-get update -y && apt-get install mtr -y || yum clean all && yum makecache && yum install mtr -y
+            if command -v apt-get &>/dev/null; then
+                apt-get update -y && apt-get install mtr -y
+            elif command -v apk &>/dev/null; then
+                apk add mtr
+            elif command -v yum &>/dev/null; then
+                yum clean all && yum makecache && yum install mtr -y
+            fi
         fi
 
         iplise=(219.141.136.12 202.106.50.1 221.179.155.161 202.96.209.133 210.22.97.1 211.136.112.200 58.60.188.222 210.21.196.6 120.196.165.24)
@@ -1353,7 +1364,15 @@ case "$test_choice" in
         ;;
     10)
         clear
-        ! command -v wget &>/dev/null && apt-get install -y wget || yum install -y wget
+        if ! command -v wget &>/dev/null; then
+            if command -v apt-get &>/dev/null; then
+                apt-get update -y && apt-get install -y wget
+            elif command -v apk &>/dev/null; then
+                apk add wget
+            elif command -v yum &>/dev/null; then
+                yum install -y wget
+            fi
+        fi
         [ ! -f "/usr/local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
 
         echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
