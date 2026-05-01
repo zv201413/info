@@ -4,6 +4,19 @@ is_container_env() {
     [ -f "/.dockerenv" ] && return 0
     grep -q "container=lxc\|docker\|kubepods" /proc/1/cgroup 2>/dev/null && return 0
     [ -n "$container" ] && return 0
+    [ -f "/run/.containerenv" ] && return 0
+    # 检测非 root 用户 + 无 ICMP 权限 = 受限环境
+    if [ "$EUID" -ne 0 ]; then
+        if ! ping -c 1 127.0.0.1 &>/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    # 检测私网 IP (RFC1918) - 通常意味着在容器/CI/沙盒环境中
+    LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -o 'src [0-9.]*' | awk '{print $2}')
+    if [ -n "$LOCAL_IP" ]; then
+        # 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+        echo "$LOCAL_IP" | grep -qE '^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\.' && return 0
+    fi
     return 1
 }
 
