@@ -24,6 +24,13 @@ can_use_sudo() {
     command -v sudo &>/dev/null && sudo -n true 2>/dev/null
 }
 
+check_net_capability() {
+    if nexttrace -T -q 1 1.1.1.1 2>&1 | grep -iq "operation not permitted"; then
+        return 1
+    fi
+    return 0
+}
+
 install_nali() {
     if command -v nali &>/dev/null; then
         return 0
@@ -1269,27 +1276,30 @@ case "$test_choice" in
     6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
 7)
         clear
-        if [ ! -f "/usr/local/bin/nexttrace" ]; then
-            curl nxtrace.org/nt | bash
-        fi
+        [ ! -f "/usr/local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
 
-        if is_container_env; then
-            echo -e "${CYAN}[容器环境] 正在获取本机公网 IP...${PLAIN}"
-            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
-            if [ -z "$SERVER_IP" ]; then
-                echo -e "${RED}[错误] 无法获取本机公网 IP${PLAIN}"
-                exit 1
-            fi
-            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
-            echo -e "${CYAN}从国内节点反向探测本机回程路由...${PLAIN}"
-            cn_nodes=(beijing shanghai guangzhou hangzhou)
-            cn_names=(北京 上海 广州 杭州)
-            for i in "${!cn_nodes[@]}"; do
-                run_reverse_trace "$SERVER_IP" "${cn_nodes[$i]}" "${cn_names[$i]}"
-            done
-        else
-            echo -e "${CYAN}[正常环境] 启动快速路由检测${PLAIN}"
+        echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
+
+        if check_net_capability; then
+            echo -e "${GREEN}[权限完整] 启动本地全网路由体检${PLAIN}"
             run_nexttrace --fast-trace --tcp
+        else
+            echo -e "${YELLOW}[权限受限] 检测到沙盒环境限制，自动切换至反向探测模式${PLAIN}"
+            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
+            [ -z "$SERVER_IP" ] && echo -e "${RED}无法获取公网IP${PLAIN}" && exit 1
+            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+
+            carriers=(china-telecom china-unicom china-mobile)
+            carrier_names=(中国电信 中国联通 中国移动)
+
+            echo -e "${CYAN}正在启动三网反向路由画像...${PLAIN}"
+            for i in "${!carriers[@]}"; do
+                printf "%-70s\n" "-" | sed 's/\s/-/g'
+                echo -e "${GREEN}${carrier_names[$i]} → 本机${PLAIN}"
+                run_nexttrace --from "${carriers[$i]}" $SERVER_IP
+                printf "%-70s\n" "-" | sed 's/\s/-/g'
+                echo
+            done
         fi
         ;;
      8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
@@ -1343,29 +1353,31 @@ case "$test_choice" in
         ;;
     10)
         clear
-        if ! command -v wget &>/dev/null; then apt-get install -y wget || yum install -y wget; fi
-        if [ ! -f "/usr/local/bin/nexttrace" ]; then
-            curl nxtrace.org/nt | bash
-        fi
+        ! command -v wget &>/dev/null && apt-get install -y wget || yum install -y wget
+        [ ! -f "/usr/local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
 
-        if is_container_env; then
-            echo -e "${CYAN}[容器环境] 正在获取本机公网 IP...${PLAIN}"
-            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
-            if [ -z "$SERVER_IP" ]; then
-                echo -e "${RED}[错误] 无法获取本机公网 IP${PLAIN}"
-                exit 1
-            fi
-            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
-            echo -e "${CYAN}开始全国反向路由测试 (从国内探测本机)${PLAIN}"
-            echo
-            cn_nodes=(beijing shanghai guangzhou hangzhou chengdu wuhan)
-            cn_names=(北京 上海 广州 杭州 成都 武汉)
-            for i in "${!cn_nodes[@]}"; do
-                run_reverse_trace "$SERVER_IP" "${cn_nodes[$i]}" "${cn_names[$i]}"
-            done
-        else
-            echo -e "${CYAN}[正常环境] 启动 besttrace 路由测试${PLAIN}"
+        echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
+
+        if check_net_capability; then
+            echo -e "${GREEN}[权限完整] 启动 besttrace 路由测试${PLAIN}"
             wget -qO- git.io/besttrace | bash
+        else
+            echo -e "${YELLOW}[权限受限] 检测到沙盒环境限制，自动切换至反向探测模式${PLAIN}"
+            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
+            [ -z "$SERVER_IP" ] && echo -e "${RED}无法获取公网IP${PLAIN}" && exit 1
+            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+
+            carriers=(china-telecom china-unicom china-mobile)
+            carrier_names=(中国电信 中国联通 中国移动)
+
+            echo -e "${CYAN}正在启动三网反向路由画像...${PLAIN}"
+            for i in "${!carriers[@]}"; do
+                printf "%-70s\n" "-" | sed 's/\s/-/g'
+                echo -e "${GREEN}${carrier_names[$i]} → 本机${PLAIN}"
+                run_nexttrace --from "${carriers[$i]}" $SERVER_IP
+                printf "%-70s\n" "-" | sed 's/\s/-/g'
+                echo
+            done
         fi
         ;;
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
