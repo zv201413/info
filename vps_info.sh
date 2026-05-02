@@ -1252,34 +1252,36 @@ get_ip_info "IPv4" "4"
 get_ip_info "IPv6" "6"
 
 
-echo -e "${BLUE}============================================================================================${PLAIN}"
-print_center "${GREEN}> 测试脚本合集${PLAIN}"
-echo -e "${BLUE}============================================================================================${PLAIN}"
+while true; do
+    clear
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    print_center "${GREEN}> 测试脚本合集${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
 
-echo -e "${GREEN}- IP及解锁状态${PLAIN}"
-print_menu_item_3 "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试" "${GREEN}3. yeahwu流媒体检测"
-print_menu_item_3 "${GREEN}4. xykt_IP质量体检" " " " "
+    echo -e "${GREEN}- IP及解锁状态${PLAIN}"
+    print_menu_item_3 "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试" "${GREEN}3. yeahwu流媒体检测"
+    print_menu_item_3 "${GREEN}4. xykt_IP质量体检" " " " "
 
-echo -e "${CYAN}- 网络测速${PLAIN}"
-print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
-print_menu_item_3 "${CYAN}8. mtr_trace回程测试" " " " "
+    echo -e "${CYAN}- 网络测速${PLAIN}"
+    print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
+    print_menu_item_3 "${CYAN}8. mtr_trace回程测试" " " " "
 
-echo -e "${PURPLE}- 性能测试${PLAIN}"
-print_menu_item_3 "${PURPLE}9. Bench性能测试" "${PURPLE}10. 融合怪大测评" " "
+    echo -e "${PURPLE}- 性能测试${PLAIN}"
+    print_menu_item_3 "${PURPLE}9. Bench性能测试" "${PURPLE}10. 融合怪大测评" " "
 
-echo -e "${YELLOW}- 工具与修复${PLAIN}"
-print_menu_item_3 "${YELLOW}11. 基础工具安装" "${YELLOW}12. IPv6/DNS修复" " "
-echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
+    echo -e "${YELLOW}- 工具与修复${PLAIN}"
+    print_menu_item_3 "${YELLOW}11. 基础工具安装" "${YELLOW}12. IPv6/DNS修复" " "
+    echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
-echo -e "${BLUE}============================================================================================${PLAIN}"
-print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
-echo -e "${BLUE}============================================================================================${PLAIN}"
-print_center "${SHORTCUT_MSG}"
-echo -e "${BLUE}============================================================================================${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    print_center "${YELLOW}当前状态${PLAIN}  $(get_uptime_simple)  |  ${CYAN}Github: zv201413/info${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    print_center "${SHORTCUT_MSG}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
 
-read -p "请输入数字选择: " test_choice
+    read -p "请输入数字选择: " test_choice
 
-case "$test_choice" in
+    case "$test_choice" in
     1) clear; bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh) ;;
     2) clear; bash <(curl -L -s check.unlock.media) ;;
     3)
@@ -1297,7 +1299,7 @@ case "$test_choice" in
        echo -e "${YELLOW}正在启动测速方案...${PLAIN}"
        echo -e "${CYAN}方案 A: Speedtest-CLI (基于 Python)${PLAIN}"
        # 尝试执行方案 A，加上 --secure 增加兼容性
-       if ! curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 -- --secure; then
+       if ! curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --secure; then
            echo -e "\n${RED}方案 A 测试失败或被跳过。${PLAIN}"
        fi
 
@@ -1491,6 +1493,13 @@ case "$test_choice" in
     10) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     11) clear; check_tools_menu ;;
     12) clear; fix_ipv6_dns_menu ;;
-    0) exit 0 ;;
-    *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
-esac
+    0) 
+        echo -e "${GREEN}感谢使用，再见！${PLAIN}"
+        break
+        ;;
+    *) 
+        echo -e "${RED}无效选择，请重新输入${PLAIN}" 
+        sleep 2
+        ;;
+    esac
+done
