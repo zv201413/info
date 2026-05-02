@@ -24,8 +24,27 @@ can_use_sudo() {
     command -v sudo &>/dev/null && sudo -n true 2>/dev/null
 }
 
+# 扩展 PATH 确保能找到 nexttrace
+export PATH="$PATH:$HOME/.local/bin:$HOME/bin:/usr/local/bin"
+
 check_net_capability() {
-    if nexttrace -T -q 1 1.1.1.1 2>&1 | grep -iq "operation not permitted"; then
+    # 先确保 nexttrace 可用
+    local nt_path=""
+    if command -v nexttrace &>/dev/null; then
+        nt_path="nexttrace"
+    elif [ -f "$HOME/.local/bin/nexttrace" ]; then
+        nt_path="$HOME/.local/bin/nexttrace"
+    elif [ -f "$HOME/bin/nexttrace" ]; then
+        nt_path="$HOME/bin/nexttrace"
+    elif [ -f "/usr/local/bin/nexttrace" ]; then
+        nt_path="/usr/local/bin/nexttrace"
+    else
+        # nexttrace 未安装
+        return 1
+    fi
+    
+    # 尝试 TCP 模式检测权限
+    if $nt_path -T -q 1 1.1.1.1 2>&1 | grep -iq "operation not permitted"; then
         return 1
     fi
     return 0
@@ -73,6 +92,23 @@ run_nexttrace() {
         return 0
     fi
 
+    # 受限环境下强制使用 TCP 模式
+    if [ "$EUID" -ne 0 ]; then
+        echo -e "${CYAN}[受限环境] 强制使用 TCP 模式${PLAIN}"
+        if command -v nali &>/dev/null; then
+            nexttrace -T $args 2>/dev/null | nali
+        else
+            install_nali
+            [ -f "$HOME/.local/bin/nali" ] && export PATH="$PATH:$HOME/.local/bin"
+            if command -v nali &>/dev/null; then
+                nexttrace -T $args 2>/dev/null | nali
+            else
+                nexttrace -T $args 2>/dev/null
+            fi
+        fi
+        return 0
+    fi
+
     echo -e "${CYAN}[模式] 尝试 API 模式 (Globalping)${PLAIN}"
     if nexttrace --from hong-kong $args 2>/dev/null; then
         return 0
@@ -86,6 +122,7 @@ run_nexttrace() {
         nexttrace -M $args 2>/dev/null | nali
     else
         install_nali
+        [ -f "$HOME/.local/bin/nali" ] && export PATH="$PATH:$HOME/.local/bin"
         if command -v nali &>/dev/null; then
             mode="本地模式 + nali 离线解析"
             echo -e "${CYAN}[模式] $mode${PLAIN}"
@@ -1295,6 +1332,8 @@ case "$test_choice" in
 
         [ ! -f "/usr/local/bin/nexttrace" ] && [ ! -f "$HOME/.local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
 
+        export PATH="$PATH:$HOME/.local/bin:$HOME/bin:/usr/local/bin"
+
         echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
 
         if check_net_capability; then
@@ -1464,6 +1503,8 @@ case "$test_choice" in
             fi
         fi
         [ ! -f "/usr/local/bin/nexttrace" ] && [ ! -f "$HOME/.local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
+
+        export PATH="$PATH:$HOME/.local/bin:$HOME/bin:/usr/local/bin"
 
         echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
 
