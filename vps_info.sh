@@ -1265,11 +1265,11 @@ while true; do
     print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
     print_menu_item_3 "${CYAN}8. mtr_trace回程测试" " " " "
 
-    echo -e "${PURPLE}- 性能测试${PLAIN}"
-    print_menu_item_3 "${PURPLE}9. Bench性能测试" "${PURPLE}10. 融合怪大测评" " "
+echo -e "${PURPLE}- 性能测试${PLAIN}"
+print_menu_item_3 "${PURPLE}9. Bench性能测试" "${PURPLE}10. 融合怪大测评" "${PURPLE}11. besttrace路由测试"
 
-    echo -e "${YELLOW}- 工具与修复${PLAIN}"
-    print_menu_item_3 "${YELLOW}11. 基础工具安装" "${YELLOW}12. IPv6/DNS修复" " "
+echo -e "${YELLOW}- 工具与修复${PLAIN}"
+print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复" " "
     echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
     echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -1490,8 +1490,17 @@ while true; do
         ;;
     9) clear; curl -Lso- bench.sh | bash ;;
     10) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    11) clear; check_tools_menu ;;
-    12) clear; fix_ipv6_dns_menu ;;
+    11) 
+        clear
+        if ! command -v wget &>/dev/null; then
+            if command -v apt-get &>/dev/null; then apt-get install -y wget
+            elif command -v yum &>/dev/null; then yum install -y wget
+            fi
+        fi
+        wget -qO- git.io/besttrace | bash
+        ;;
+    12) clear; check_tools_menu ;;
+    13) clear; fix_ipv6_dns_menu ;;
     0) 
         echo -e "${GREEN}感谢使用，再见！${PLAIN}"
         break
