@@ -11,6 +11,11 @@ bash <(curl -sL https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh
 ```bash
 vps
 ```
+### 方式三：极度受限环境（webhostmost、webfreecloud）
+```bash
+curl -sL -o v.sh https://raw.githubusercontent.com/zv201413/info/main/vps_info.sh && bash v.sh; rm v.sh
+```
+
 
 ## 常见问题
 
