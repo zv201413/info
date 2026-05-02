@@ -1289,31 +1289,62 @@ case "$test_choice" in
     6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
 7)
         clear
-        [ ! -f "/usr/local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        print_center "🗺️  回程路由深度画像 (NextTrace)"
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+
+        [ ! -f "/usr/local/bin/nexttrace" ] && [ ! -f "$HOME/.local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
 
         echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
 
         if check_net_capability; then
-            echo -e "${GREEN}[权限完整] 启动本地全网路由体检${PLAIN}"
-            run_nexttrace --fast-trace --tcp
+            print_center "${GREEN}[权限完整] 启动本地 Fast Trace 交互模式${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            nexttrace -F
         else
-            echo -e "${YELLOW}[权限受限] 检测到沙盒环境限制，自动切换至反向探测模式${PLAIN}"
-            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
-            [ -z "$SERVER_IP" ] && echo -e "${RED}无法获取公网IP${PLAIN}" && exit 1
-            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+            print_center "${YELLOW}[权限受限] 环境无法发送原始包，已启用反向 API 模式${PLAIN}"
+            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null)
 
-            carriers=(china-telecom china-unicom china-mobile)
-            carrier_names=(中国电信 中国联通 中国移动)
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            print_center "${CYAN}本机出口 IP: $SERVER_IP${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
 
-            echo -e "${CYAN}正在启动三网反向路由画像...${PLAIN}"
-            for i in "${!carriers[@]}"; do
-                printf "%-70s\n" "-" | sed 's/\s/-/g'
-                echo -e "${GREEN}${carrier_names[$i]} → 本机${PLAIN}"
-                run_nexttrace --from "${carriers[$i]}" $SERVER_IP
-                printf "%-70s\n" "-" | sed 's/\s/-/g'
-                echo
-            done
+            print_center "${GREEN}请选择要测试的 IP 类型${PLAIN}"
+            print_menu_item_3 "${CYAN}1. IPv4" "${CYAN}2. IPv6" " "
+            echo -e "${BLUE}--------------------------------------------------------------------------------------------${PLAIN}"
+            read -p "请选择选项 [1-2]: " ip_ver
+
+            echo -e "\n${BLUE}--------------------------------------------------------------------------------------------${PLAIN}"
+            print_center "${GREEN}您想测试哪些ISP的路由？${PLAIN}"
+
+            print_menu_item_3 "${CYAN}1. 北京三网快速测试" "${CYAN}2. 上海三网快速测试" "${CYAN}3. 广州三网快速测试"
+            print_menu_item_3 "${CYAN}4. 全国电信"         "${CYAN}5. 全国联通"         "${CYAN}6. 全国移动"
+            print_menu_item_3 "${CYAN}7. 全国教育网"       "${CYAN}8. 全国五网"         "${GREEN}0. 返回主菜单"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+
+            read -p "请选择选项 [0-8]: " rev_choice
+
+            case "$rev_choice" in
+                1) run_nexttrace --from beijing $SERVER_IP ;;
+                2) run_nexttrace --from shanghai $SERVER_IP ;;
+                3) run_nexttrace --from guangzhou $SERVER_IP ;;
+                4) run_nexttrace --from china-telecom $SERVER_IP ;;
+                5) run_nexttrace --from china-unicom $SERVER_IP ;;
+                6) run_nexttrace --from china-mobile $SERVER_IP ;;
+                7) run_nexttrace --from cernet $SERVER_IP ;;
+                8)
+                    carriers=(china-telecom china-unicom china-mobile)
+                    carrier_names=(中国电信 中国联通 中国移动)
+                    for i in "${!carriers[@]}"; do
+                        run_nexttrace --from "${carriers[$i]}" $SERVER_IP
+                    done
+                    ;;
+                0) ;;
+                *) echo -e "${RED}无效选择${PLAIN}" ;;
+            esac
         fi
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        read -p "按回车键返回主菜单..." dummy
         ;;
      8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
      9)
@@ -1372,6 +1403,10 @@ case "$test_choice" in
         ;;
     10)
         clear
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        print_center "🗺️  BestTrace 路由测试"
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+
         if ! command -v wget &>/dev/null; then
             if command -v apt-get &>/dev/null; then
                 apt-get update -y && apt-get install -y wget
@@ -1381,31 +1416,51 @@ case "$test_choice" in
                 yum install -y wget
             fi
         fi
-        [ ! -f "/usr/local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
+        [ ! -f "/usr/local/bin/nexttrace" ] && [ ! -f "$HOME/.local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
 
         echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
 
         if check_net_capability; then
-            echo -e "${GREEN}[权限完整] 启动 besttrace 路由测试${PLAIN}"
+            print_center "${GREEN}[权限完整] 启动 besttrace 路由测试${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
             wget -qO- git.io/besttrace | bash
         else
-            echo -e "${YELLOW}[权限受限] 检测到沙盒环境限制，自动切换至反向探测模式${PLAIN}"
-            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -4 -s --max-time 10 https://ifconfig.me 2>/dev/null)
-            [ -z "$SERVER_IP" ] && echo -e "${RED}无法获取公网IP${PLAIN}" && exit 1
-            echo -e "${GREEN}本机公网 IP: $SERVER_IP${PLAIN}"
+            print_center "${YELLOW}[权限受限] 环境无法发送原始包，已启用反向 API 模式${PLAIN}"
+            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null)
 
-            carriers=(china-telecom china-unicom china-mobile)
-            carrier_names=(中国电信 中国联通 中国移动)
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+            print_center "${CYAN}本机出口 IP: $SERVER_IP${PLAIN}"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
 
-            echo -e "${CYAN}正在启动三网反向路由画像...${PLAIN}"
-            for i in "${!carriers[@]}"; do
-                printf "%-70s\n" "-" | sed 's/\s/-/g'
-                echo -e "${GREEN}${carrier_names[$i]} → 本机${PLAIN}"
-                run_nexttrace --from "${carriers[$i]}" $SERVER_IP
-                printf "%-70s\n" "-" | sed 's/\s/-/g'
-                echo
-            done
+            print_center "${GREEN}请选择要测试的 ISP 路由${PLAIN}"
+            print_menu_item_3 "${CYAN}1. 北京三网快速测试" "${CYAN}2. 上海三网快速测试" "${CYAN}3. 广州三网快速测试"
+            print_menu_item_3 "${CYAN}4. 全国电信"         "${CYAN}5. 全国联通"         "${CYAN}6. 全国移动"
+            print_menu_item_3 "${CYAN}7. 全国教育网"       "${CYAN}8. 全国五网"         "${GREEN}0. 返回主菜单"
+            echo -e "${BLUE}============================================================================================${PLAIN}"
+
+            read -p "请选择选项 [0-8]: " rev_choice
+
+            case "$rev_choice" in
+                1) run_nexttrace --from beijing $SERVER_IP ;;
+                2) run_nexttrace --from shanghai $SERVER_IP ;;
+                3) run_nexttrace --from guangzhou $SERVER_IP ;;
+                4) run_nexttrace --from china-telecom $SERVER_IP ;;
+                5) run_nexttrace --from china-unicom $SERVER_IP ;;
+                6) run_nexttrace --from china-mobile $SERVER_IP ;;
+                7) run_nexttrace --from cernet $SERVER_IP ;;
+                8)
+                    carriers=(china-telecom china-unicom china-mobile)
+                    carrier_names=(中国电信 中国联通 中国移动)
+                    for i in "${!carriers[@]}"; do
+                        run_nexttrace --from "${carriers[$i]}" $SERVER_IP
+                    done
+                    ;;
+                0) ;;
+                *) echo -e "${RED}无效选择${PLAIN}" ;;
+            esac
         fi
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        read -p "按回车键返回主菜单..." dummy
         ;;
     11) clear; bash <(curl -sL bash.icu/gb5) ;;
     12) clear; curl -Lso- bench.sh | bash ;;
