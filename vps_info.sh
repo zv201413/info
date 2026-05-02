@@ -1253,7 +1253,6 @@ get_ip_info "IPv6" "6"
 
 
 while true; do
-    clear
     get_ip_info "IPv4" "4"
     get_ip_info "IPv6" "6"
     
