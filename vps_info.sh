@@ -54,13 +54,21 @@ run_nexttrace() {
     local args="$@"
     local mode=""
     local has_from=0
+    local is_local=0
 
     for arg in $args; do
         [ "$arg" = "--from" ] && has_from=1 && break
+        [ "$arg" = "-F" ] || [ "$arg" = "--fast-trace" ] && is_local=1 && break
     done
 
     if [ $has_from -eq 1 ]; then
         echo -e "${CYAN}[模式] API 模式 (Globalping)${PLAIN}"
+        nexttrace $args
+        return 0
+    fi
+
+    if [ $is_local -eq 1 ]; then
+        echo -e "${CYAN}[模式] 本地模式${PLAIN}"
         nexttrace $args
         return 0
     fi
