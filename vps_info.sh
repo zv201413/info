@@ -1265,10 +1265,10 @@ print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三
 print_menu_item_3 "${CYAN}8. mtr_trace回程测试" " " " "
 
 echo -e "${PURPLE}- 性能测试${PLAIN}"
-print_menu_item_3 "${PURPLE}9. GB5 CPU性能测试" "${PURPLE}10. Bench性能测试" "${PURPLE}11. 融合怪大测评"
+print_menu_item_3 "${PURPLE}9. Bench性能测试" "${PURPLE}10. 融合怪大测评" " "
 
 echo -e "${YELLOW}- 工具与修复${PLAIN}"
-print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复" " "
+print_menu_item_3 "${YELLOW}11. 基础工具安装" "${YELLOW}12. IPv6/DNS修复" " "
 echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -1487,11 +1487,10 @@ case "$test_choice" in
         rm -f /tmp/traceroute_testlog
         echo -e "\n——————————————————————————————\n本脚本测试结果为TCP回程路由,非ICMP回程路由 仅供参考,以最新IP段为准 谢谢\n"
         ;;
-    9) clear; bash <(curl -sL bash.icu/gb5) ;;
-    10) clear; curl -Lso- bench.sh | bash ;;
-    11) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    12) clear; check_tools_menu ;;
-    13) clear; fix_ipv6_dns_menu ;;
+    9) clear; curl -Lso- bench.sh | bash ;;
+    10) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
+    11) clear; check_tools_menu ;;
+    12) clear; fix_ipv6_dns_menu ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
