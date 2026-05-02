@@ -1225,13 +1225,13 @@ print_menu_item_3 "${GREEN}4. xykt_IP质量体检" " " " "
 
 echo -e "${CYAN}- 网络测速${PLAIN}"
 print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
-print_menu_item_3 "${CYAN}8. ludashi2020线路测试" "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试"
+print_menu_item_3 "${CYAN}8. mtr_trace回程测试" "${CYAN}9. besttrace路由测试" " "
 
 echo -e "${PURPLE}- 性能测试${PLAIN}"
-print_menu_item_3 "${PURPLE}11. GB5 CPU性能测试" "${PURPLE}12. Bench性能测试" "${PURPLE}13. 融合怪大测评"
+print_menu_item_3 "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试" "${PURPLE}12. 融合怪大测评"
 
 echo -e "${YELLOW}- 工具与修复${PLAIN}"
-print_menu_item_3 "${YELLOW}14. 基础工具安装" "${YELLOW}15. IPv6/DNS修复" " "
+print_menu_item_3 "${YELLOW}13. 基础工具安装" "${YELLOW}14. IPv6/DNS修复" " "
 echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -1346,8 +1346,7 @@ case "$test_choice" in
         echo -e "${BLUE}============================================================================================${PLAIN}"
         read -p "按回车键返回主菜单..." dummy
         ;;
-     8) clear; curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh ;;
-     9)
+     8)
         clear
         if ! command -v mtr &>/dev/null; then
             echo -e "${YELLOW}正在安装 mtr...${PLAIN}"
@@ -1401,7 +1400,7 @@ case "$test_choice" in
         rm -f /tmp/traceroute_testlog
         echo -e "\n——————————————————————————————\n本脚本测试结果为TCP回程路由,非ICMP回程路由 仅供参考,以最新IP段为准 谢谢\n"
         ;;
-    10)
+    9)
         clear
         echo -e "${BLUE}============================================================================================${PLAIN}"
         print_center "🗺️  BestTrace 路由测试"
@@ -1462,11 +1461,11 @@ case "$test_choice" in
         echo -e "${BLUE}============================================================================================${PLAIN}"
         read -p "按回车键返回主菜单..." dummy
         ;;
-    11) clear; bash <(curl -sL bash.icu/gb5) ;;
-    12) clear; curl -Lso- bench.sh | bash ;;
-    13) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    14) clear; check_tools_menu ;;
-    15) clear; fix_ipv6_dns_menu ;;
+    10) clear; bash <(curl -sL bash.icu/gb5) ;;
+    11) clear; curl -Lso- bench.sh | bash ;;
+    12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
+    13) clear; check_tools_menu ;;
+    14) clear; fix_ipv6_dns_menu ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
