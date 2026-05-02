@@ -1475,9 +1475,9 @@ case "$test_choice" in
         echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
 
         if check_net_capability; then
-            print_center "${GREEN}[权限完整] 启动 besttrace 路由测试${PLAIN}"
+            print_center "${GREEN}[权限完整] 启动 Fast Trace 交互模式${PLAIN}"
             echo -e "${BLUE}============================================================================================${PLAIN}"
-            wget -qO- git.io/besttrace | bash
+            nexttrace -F
         else
             print_center "${YELLOW}[权限受限] 环境无法发送原始包，已启用反向 API 模式${PLAIN}"
             SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null)
