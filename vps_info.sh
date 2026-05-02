@@ -1324,25 +1324,76 @@ case "$test_choice" in
 
             read -p "请选择选项 [0-8]: " rev_choice
 
+            tel_ips=(219.141.147.210 202.96.209.133 58.60.188.222)
+            tel_names=(北京电信 上海电信 深圳电信)
+            unicom_ips=(202.106.50.1 210.22.97.1 210.21.196.6)
+            unicom_names=(北京联通 上海联通 深圳联通)
+            mobile_ips=(221.179.155.161 211.136.112.200 120.196.165.24)
+            mobile_names=(北京移动 上海移动 深圳移动)
+
             case "$rev_choice" in
                 1) run_nexttrace --from beijing $SERVER_IP ;;
                 2) run_nexttrace --from shanghai $SERVER_IP ;;
                 3) run_nexttrace --from guangzhou $SERVER_IP ;;
-                4) run_nexttrace --from china-telecom $SERVER_IP ;;
-                5) run_nexttrace --from china-unicom $SERVER_IP ;;
-                6) run_nexttrace --from china-mobile $SERVER_IP ;;
+                4)
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}${tel_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${tel_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    ;;
+                5)
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}${unicom_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${unicom_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    ;;
+                6)
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}${mobile_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${mobile_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    ;;
                 7) run_nexttrace --from cernet $SERVER_IP ;;
                 8)
-                    carriers=(china-telecom china-unicom china-mobile)
-                    carrier_names=(中国电信 中国联通 中国移动)
-                    for i in "${!carriers[@]}"; do
-                        run_nexttrace --from "${carriers[$i]}" $SERVER_IP
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}电信 ${tel_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${tel_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}联通 ${unicom_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${unicom_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}移动 ${mobile_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${mobile_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
                     done
                     ;;
                 0) ;;
                 *) echo -e "${RED}无效选择${PLAIN}" ;;
             esac
         fi
+        echo -e "${BLUE}============================================================================================${PLAIN}"
+        read -p "按回车键返回主菜单..." dummy
+        ;;
+    9)
         echo -e "${BLUE}============================================================================================${PLAIN}"
         read -p "按回车键返回主菜单..." dummy
         ;;
@@ -1439,19 +1490,66 @@ case "$test_choice" in
 
             read -p "请选择选项 [0-8]: " rev_choice
 
+            tel_ips=(219.141.147.210 202.96.209.133 58.60.188.222)
+            tel_names=(北京电信 上海电信 深圳电信)
+            unicom_ips=(202.106.50.1 210.22.97.1 210.21.196.6)
+            unicom_names=(北京联通 上海联通 深圳联通)
+            mobile_ips=(221.179.155.161 211.136.112.200 120.196.165.24)
+            mobile_names=(北京移动 上海移动 深圳移动)
+
             case "$rev_choice" in
                 1) run_nexttrace --from beijing $SERVER_IP ;;
                 2) run_nexttrace --from shanghai $SERVER_IP ;;
                 3) run_nexttrace --from guangzhou $SERVER_IP ;;
-                4) run_nexttrace --from china-telecom $SERVER_IP ;;
-                5) run_nexttrace --from china-unicom $SERVER_IP ;;
-                6) run_nexttrace --from china-mobile $SERVER_IP ;;
+                4)
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}${tel_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${tel_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    ;;
+                5)
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}${unicom_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${unicom_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    ;;
+                6)
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}${mobile_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${mobile_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    ;;
                 7) run_nexttrace --from cernet $SERVER_IP ;;
                 8)
-                    carriers=(china-telecom china-unicom china-mobile)
-                    carrier_names=(中国电信 中国联通 中国移动)
-                    for i in "${!carriers[@]}"; do
-                        run_nexttrace --from "${carriers[$i]}" $SERVER_IP
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}电信 ${tel_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${tel_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}联通 ${unicom_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${unicom_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
+                    done
+                    for i in {0..2}; do
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo -e "${GREEN}移动 ${mobile_names[$i]} → 本机${PLAIN}"
+                        run_nexttrace --from ${mobile_ips[$i]} $SERVER_IP
+                        printf "%-70s\n" "-" | sed 's/\s/-/g'
+                        echo
                     done
                     ;;
                 0) ;;
