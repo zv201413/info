@@ -1262,13 +1262,13 @@ print_menu_item_3 "${GREEN}4. xykt_IP质量体检" " " " "
 
 echo -e "${CYAN}- 网络测速${PLAIN}"
 print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
-print_menu_item_3 "${CYAN}8. mtr_trace回程测试" "${CYAN}9. besttrace路由测试" " "
+print_menu_item_3 "${CYAN}8. mtr_trace回程测试" " " " "
 
 echo -e "${PURPLE}- 性能测试${PLAIN}"
-print_menu_item_3 "${PURPLE}10. GB5 CPU性能测试" "${PURPLE}11. Bench性能测试" "${PURPLE}12. 融合怪大测评"
+print_menu_item_3 "${PURPLE}9. GB5 CPU性能测试" "${PURPLE}10. Bench性能测试" "${PURPLE}11. 融合怪大测评"
 
 echo -e "${YELLOW}- 工具与修复${PLAIN}"
-print_menu_item_3 "${YELLOW}13. 基础工具安装" "${YELLOW}14. IPv6/DNS修复" " "
+print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复" " "
 echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
 echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -1487,118 +1487,11 @@ case "$test_choice" in
         rm -f /tmp/traceroute_testlog
         echo -e "\n——————————————————————————————\n本脚本测试结果为TCP回程路由,非ICMP回程路由 仅供参考,以最新IP段为准 谢谢\n"
         ;;
-    9)
-        clear
-        echo -e "${BLUE}============================================================================================${PLAIN}"
-        print_center "🗺️  BestTrace 路由测试"
-        echo -e "${BLUE}============================================================================================${PLAIN}"
-
-        if ! command -v wget &>/dev/null; then
-            if command -v apt-get &>/dev/null; then
-                apt-get update -y && apt-get install -y wget
-            elif command -v apk &>/dev/null; then
-                apk add wget
-            elif command -v yum &>/dev/null; then
-                yum install -y wget
-            fi
-        fi
-        [ ! -f "/usr/local/bin/nexttrace" ] && [ ! -f "$HOME/.local/bin/nexttrace" ] && curl nxtrace.org/nt | bash
-
-        export PATH="$PATH:$HOME/.local/bin:$HOME/bin:/usr/local/bin"
-
-        echo -e "${CYAN}[检测中] 正在评估本地网络探测权限...${PLAIN}"
-
-        if check_net_capability; then
-            print_center "${GREEN}[权限完整] 启动 Fast Trace 交互模式${PLAIN}"
-            echo -e "${BLUE}============================================================================================${PLAIN}"
-            nexttrace -F
-        else
-            print_center "${YELLOW}[权限受限] 环境无法发送原始包，已启用反向 API 模式${PLAIN}"
-            SERVER_IP=$(curl -4 -s --max-time 10 https://ip.sb 2>/dev/null || curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null)
-
-            echo -e "${BLUE}============================================================================================${PLAIN}"
-            print_center "${CYAN}本机出口 IP: $SERVER_IP${PLAIN}"
-            echo -e "${BLUE}============================================================================================${PLAIN}"
-
-            print_center "${GREEN}请选择要测试的 ISP 路由${PLAIN}"
-            print_menu_item_3 "${CYAN}1. 北京三网快速测试" "${CYAN}2. 上海三网快速测试" "${CYAN}3. 广州三网快速测试"
-            print_menu_item_3 "${CYAN}4. 全国电信"         "${CYAN}5. 全国联通"         "${CYAN}6. 全国移动"
-            print_menu_item_3 "${CYAN}7. 全国教育网"       "${CYAN}8. 全国五网"         "${GREEN}0. 返回主菜单"
-            echo -e "${BLUE}============================================================================================${PLAIN}"
-
-            read -p "请选择选项 [0-8]: " rev_choice
-
-            cn_cities=(beijing shanghai guangzhou hangzhou chengdu xian zhengzhou harbin kunming nanchang)
-            cn_city_names=(北京 上海 广州 杭州 成都 西安 郑州 哈尔滨 昆明 南昌)
-            cn_city_count=10
-
-            case "$rev_choice" in
-                1) run_nexttrace --from beijing $SERVER_IP ;;
-                2) run_nexttrace --from shanghai $SERVER_IP ;;
-                3) run_nexttrace --from guangzhou $SERVER_IP ;;
-                4)
-                    for i in $(seq 0 $((cn_city_count-1))); do
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo -e "${GREEN}${cn_city_names[$i]}电信 → 本机${PLAIN}"
-                        run_nexttrace --from ${cn_cities[$i]} $SERVER_IP
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo
-                    done
-                    ;;
-                5)
-                    for i in $(seq 0 $((cn_city_count-1))); do
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo -e "${GREEN}${cn_city_names[$i]}联通 → 本机${PLAIN}"
-                        run_nexttrace --from ${cn_cities[$i]} $SERVER_IP
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo
-                    done
-                    ;;
-                6)
-                    for i in $(seq 0 $((cn_city_count-1))); do
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo -e "${GREEN}${cn_city_names[$i]}移动 → 本机${PLAIN}"
-                        run_nexttrace --from ${cn_cities[$i]} $SERVER_IP
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo
-                    done
-                    ;;
-                7) run_nexttrace --from cernet $SERVER_IP ;;
-                8)
-                    for i in $(seq 0 $((cn_city_count-1))); do
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo -e "${GREEN}${cn_city_names[$i]}电信 → 本机${PLAIN}"
-                        run_nexttrace --from ${cn_cities[$i]} $SERVER_IP
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo
-                    done
-                    for i in $(seq 0 $((cn_city_count-1))); do
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo -e "${GREEN}${cn_city_names[$i]}联通 → 本机${PLAIN}"
-                        run_nexttrace --from ${cn_cities[$i]} $SERVER_IP
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo
-                    done
-                    for i in $(seq 0 $((cn_city_count-1))); do
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo -e "${GREEN}${cn_city_names[$i]}移动 →本机${PLAIN}"
-                        run_nexttrace --from ${cn_cities[$i]} $SERVER_IP
-                        printf "%-70s\n" "-" | sed 's/\s/-/g'
-                        echo
-                    done
-                    ;;
-                0) ;;
-                *) echo -e "${RED}无效选择${PLAIN}" ;;
-            esac
-        fi
-        echo -e "${BLUE}============================================================================================${PLAIN}"
-        read -p "按回车键返回主菜单..." dummy
-        ;;
-    10) clear; bash <(curl -sL bash.icu/gb5) ;;
-    11) clear; curl -Lso- bench.sh | bash ;;
-    12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    13) clear; check_tools_menu ;;
-    14) clear; fix_ipv6_dns_menu ;;
+    9) clear; bash <(curl -sL bash.icu/gb5) ;;
+    10) clear; curl -Lso- bench.sh | bash ;;
+    11) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
+    12) clear; check_tools_menu ;;
+    13) clear; fix_ipv6_dns_menu ;;
     0) exit 0 ;;
     *) echo -e "${RED}无效选择，脚本退出${PLAIN}" ;;
 esac
