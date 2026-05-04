@@ -1324,7 +1324,15 @@ print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复
            echo -e "${RED}方案 B 测试失败，请检查网络连接或 curl 是否安装。${PLAIN}"
        fi
        ;;
-    6) clear; bash <(curl -Lso- https://git.io/superspeed_uxh) ;;
+    6) 
+    clear
+    echo -e "${YELLOW}正在加载 Superspeed 测速脚本...${PLAIN}"
+    if curl -Lso- /dev/null https://raw.githubusercontent.com/ernest-v/superspeed/master/superspeed.sh 2>/dev/null; then
+        bash <(curl -Lso- https://raw.githubusercontent.com/ernest-v/superspeed/master/superspeed.sh)
+    else
+        echo -e "${RED}测速脚本加载失败，请检查网络连接${PLAIN}"
+    fi
+    ;;
 7)
         clear
         echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -1491,7 +1499,7 @@ iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海
             elif command -v yum &>/dev/null; then yum install -y wget
             fi
         fi
-        wget -qO- git.io/besttrace | bash
+        wget -qO- https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/besttrace.sh | bash
         ;;
     12) clear; check_tools_menu ;;
     13) clear; fix_ipv6_dns_menu ;;
