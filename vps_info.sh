@@ -1447,41 +1447,41 @@ print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复
             fi
         fi
 
-        iplise=(219.141.136.12 202.106.50.1 221.179.155.161 202.96.209.133 210.22.97.1 211.136.112.200 58.60.188.222 210.21.196.6 120.196.165.24)
-        iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海移动 深圳电信 深圳联通 深圳移动)
+iplist=(219.141.136.12 202.106.50.1 221.179.155.161 202.96.209.133 210.22.97.1 211.136.112.200 58.60.188.222 210.21.196.6 120.196.165.24)
+iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海移动 深圳电信 深圳联通 深圳移动)
 
         echo -e "\n正在测试,请稍等..."
         echo -e "——————————————————————————————\n"
 
         for i in {0..8}; do
-            run_mtr -r -n --tcp ${iplise[$i]} > /tmp/traceroute_testlog 2>/dev/null
+            run_mtr -r -n --tcp ${iplist[$i]} > /tmp/traceroute_testlog 2>/dev/null
 
             if grep -q "59\.43\." /tmp/traceroute_testlog 2>/dev/null; then
                 if grep -q "202\.97\." /tmp/traceroute_testlog 2>/dev/null; then
-                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;32m电信CN2 GT\033[0m"
+                    echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;32m电信CN2 GT\033[0m"
                 else
-                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;31m电信CN2 GIA\033[0m"
+                    echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;31m电信CN2 GIA\033[0m"
                 fi
             elif grep -q "202\.97\." /tmp/traceroute_testlog 2>/dev/null; then
                 if grep -q "219\.158\." /tmp/traceroute_testlog 2>/dev/null; then
-                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;33m联通169\033[0m"
+                    echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;33m联通169\033[0m"
                 else
-                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;34m电信163\033[0m"
+                    echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;34m电信163\033[0m"
                 fi
             elif grep -q "218\.105\." /tmp/traceroute_testlog 2>/dev/null; then
-                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;35m联通9929\033[0m"
+                echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;35m联通9929\033[0m"
             elif grep -q "219\.158\." /tmp/traceroute_testlog 2>/dev/null; then
                 if grep -q "219\.158\.113\." /tmp/traceroute_testlog 2>/dev/null; then
-                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;33m联通AS4837\033[0m"
+                    echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;33m联通AS4837\033[0m"
                 else
-                    echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;33m联通169\033[0m"
+                    echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;33m联通169\033[0m"
                 fi
             elif grep -q "223\.120\." /tmp/traceroute_testlog 2>/dev/null; then
-                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;35m移动CMI\033[0m"
+                echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;35m移动CMI\033[0m"
             elif grep -q "221\.183\." /tmp/traceroute_testlog 2>/dev/null; then
-                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:\033[1;35m移动cmi\033[0m"
+                echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:\033[1;35m移动cmi\033[0m"
             else
-                echo -e "目标:${iplocal[$i]}[${iplise[$i]}]\t回程线路:其他"
+                echo -e "目标:${iplocal[$i]}[${iplist[$i]}]\t回程线路:其他"
             fi
         done
 
