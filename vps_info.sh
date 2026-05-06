@@ -1493,7 +1493,7 @@ iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海
     9) 
         clear
         echo -e "${YELLOW}正在加载 BestTrace 路由测试...${PLAIN}"
-        bash <(curl -Ls https://raw.githubusercontent.com/zq/shell/master/besttrace.sh)
+        bash <(curl -Ls https://raw.githubusercontent.com/tomdiary/besttrace/main/main.sh)
         ;;
     10) clear; curl -Lso- bench.sh | bash ;;
     11) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
