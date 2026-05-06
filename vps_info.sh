@@ -1494,12 +1494,8 @@ iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海
     10) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     11) 
         clear
-        if ! command -v wget &>/dev/null; then
-            if command -v apt-get &>/dev/null; then apt-get install -y wget
-            elif command -v yum &>/dev/null; then yum install -y wget
-            fi
-        fi
-        wget -qO- https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/besttrace.sh | bash
+        echo -e "${YELLOW}正在加载 BestTrace 路由测试...${PLAIN}"
+        bash <(curl -Ls https://raw.githubusercontent.com/zq/shell/master/besttrace.sh)
         ;;
     12) clear; check_tools_menu ;;
     13) clear; fix_ipv6_dns_menu ;;
