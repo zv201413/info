@@ -357,6 +357,158 @@ check_and_install_deps() {
 }
 check_and_install_deps
 
+# --- NAT 类型检测 (Python STUN RFC 3489/5389) ---
+detect_nat_type() {
+    if ! command -v python3 &>/dev/null; then
+        echo -e "${RED}[!] NAT检测需要 python3，但未安装${PLAIN}"
+        return 1
+    fi
+
+    clear
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    print_center "${YELLOW}NAT 类型检测 (STUN 协议)${PLAIN}"
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+    echo -e "${CYAN}正在向 STUN 服务器发送探测包...${PLAIN}"
+    echo -e "${YELLOW}服务器: stun.l.google.com:19302${PLAIN}"
+    echo -e "${BLUE}--------------------------------------------------------------------------------------------${PLAIN}"
+
+    local result
+    result=$(python3 << 'PYEOF' 2>&1
+import socket, struct, os, sys
+
+MAGIC = 0x2112A442
+SRVS = [("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)]
+
+def stun_req(sock, host, port, change_ip=False, change_port=False):
+    tid = os.urandom(12)
+    attrs = b""
+    if change_ip or change_port:
+        f = (0x04 if change_ip else 0) | (0x02 if change_port else 0)
+        attrs = struct.pack("!HH", 0x0003, 4) + struct.pack("!I", f)
+    pkt = struct.pack("!HHI", 0x0001, len(attrs), MAGIC) + tid + attrs
+    try:
+        sock.sendto(pkt, (host, port))
+        data, _ = sock.recvfrom(4096)
+    except Exception:
+        return None
+    if len(data) < 20:
+        return None
+    _, _, rm = struct.unpack("!HHI", data[:8])
+    if rm != MAGIC:
+        return None
+    pos = 20
+    while pos + 4 <= len(data):
+        at, al = struct.unpack("!HH", data[pos:pos+4]); pos += 4
+        if at == 0x0020:
+            fam = data[pos+1]
+            xp = struct.unpack("!H", data[pos+2:pos+4])[0] ^ (MAGIC >> 16)
+            if fam == 0x01:
+                xi = struct.unpack("!I", data[pos+4:pos+8])[0] ^ MAGIC
+                return (socket.inet_ntoa(struct.pack("!I", xi)), xp)
+        pos += al
+    return None
+
+# get local IP
+lip = None
+ts = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    ts.connect(("8.8.8.8", 80)); lip = ts.getsockname()[0]
+except: pass
+finally: ts.close()
+if not lip:
+    print("ERR|无法获取本地 IP"); sys.exit(0)
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("0.0.0.0", 0))
+sock.settimeout(4)
+lport = sock.getsockname()[1]
+
+m1 = stun_req(sock, SRVS[0][0], SRVS[0][1])
+if not m1:
+    print("BLOCKED|UDP 通信被屏蔽（无 STUN 响应）"); sock.close(); sys.exit(0)
+
+eip, eport = m1
+if eip == lip and eport == lport:
+    ipv = "IPv4" if ":" not in eip else "IPv6"
+    print(f"NO_NAT|公网 {ipv} - 无 NAT 转换|{eip}|{eport}"); sock.close(); sys.exit(0)
+
+mc = stun_req(sock, SRVS[0][0], SRVS[0][1], change_ip=True, change_port=True)
+if mc:
+    print(f"FULL_CONE|全锥型 (Full Cone) - 外网任意主机均可通过映射地址访问|{eip}|{eport}")
+    sock.close(); sys.exit(0)
+
+m2 = stun_req(sock, SRVS[1][0], SRVS[1][1])
+if not m2:
+    print(f"UNKNOWN|Cone 类型（无法确定子类 - Server B 无响应）|{eip}|{eport}")
+    sock.close(); sys.exit(0)
+
+if eip != m2[0] or eport != m2[1]:
+    print(f"SYMMETRIC|对称型 (Symmetric) - 每目标独立映射|{eip}|{eport}")
+    sock.close(); sys.exit(0)
+
+mcp = stun_req(sock, SRVS[0][0], SRVS[0][1], change_port=True)
+if mcp:
+    print(f"RESTRICTED|地址限制锥型 (Restricted Cone)|{eip}|{eport}")
+else:
+    print(f"PORT_RESTRICTED|端口限制锥型 (Port Restricted Cone)|{eip}|{eport}")
+sock.close()
+PYEOF
+)
+
+    local nat_type nat_msg ext_ip ext_port
+    nat_type=$(echo "$result" | head -1 | cut -d'|' -f1)
+    nat_msg=$(echo "$result" | head -1 | cut -d'|' -f2)
+    ext_ip=$(echo "$result" | head -1 | cut -d'|' -f3)
+    ext_port=$(echo "$result" | head -1 | cut -d'|' -f4)
+
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+
+    case "$nat_type" in
+        NO_NAT)
+            echo -e "${GREEN}结果: 公网 IP（无 NAT）${PLAIN}"
+            echo -e "${CYAN}出口 IP: ${ext_ip}${PLAIN}"
+            ;;
+        FULL_CONE)
+            echo -e "${GREEN}结果: 全锥型 NAT (Full Cone NAT)${PLAIN}"
+            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
+            echo -e "${YELLOW}说明: 外网任何主机均可通过 ${ext_ip}:${ext_port} 访问本机${PLAIN}"
+            ;;
+        RESTRICTED)
+            echo -e "${GREEN}结果: 地址限制锥型 NAT (Restricted Cone)${PLAIN}"
+            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
+            echo -e "${YELLOW}说明: 仅本机曾发送过数据的目标 IP 可回访${PLAIN}"
+            ;;
+        PORT_RESTRICTED)
+            echo -e "${YELLOW}结果: 端口限制锥型 NAT (Port Restricted Cone)${PLAIN}"
+            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
+            echo -e "${YELLOW}说明: 仅本机曾发送过数据的目标 IP:Port 可回访${PLAIN}"
+            ;;
+        SYMMETRIC)
+            echo -e "${RED}结果: 对称型 NAT (Symmetric NAT)${PLAIN}"
+            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
+            echo -e "${YELLOW}说明: 每个目标地址分配独立映射，P2P 穿透困难${PLAIN}"
+            ;;
+        BLOCKED)
+            echo -e "${RED}结果: UDP 被屏蔽，无法检测${PLAIN}"
+            echo -e "${YELLOW}说明: STUN 服务器无响应，请检查防火墙/网络${PLAIN}"
+            ;;
+        UNKNOWN)
+            echo -e "${YELLOW}结果: 部分检测成功，无法完全分类${PLAIN}"
+            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
+            echo -e "${YELLOW}说明: ${nat_msg}${PLAIN}"
+            ;;
+        ERR*)
+            echo -e "${RED}结果: 检测失败${PLAIN}"
+            echo -e "${YELLOW}说明: ${nat_msg}${PLAIN}"
+            ;;
+        *)
+            echo -e "${RED}结果: 检测异常${PLAIN}"
+            echo -e "${YELLOW}原始输出: ${result}${PLAIN}"
+            ;;
+    esac
+    echo -e "${BLUE}============================================================================================${PLAIN}"
+}
+
 # --- IPv6/DNS 修复功能 ---
 fix_ipv6_dns_menu() {
     clear
@@ -1259,7 +1411,7 @@ while true; do
 
     echo -e "${GREEN}- IP及解锁状态${PLAIN}"
     print_menu_item_3 "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试" "${GREEN}3. yeahwu流媒体检测"
-    print_menu_item_3 "${GREEN}4. xykt_IP质量体检" " " " "
+    print_menu_item_3 "${GREEN}4. xykt_IP质量体检" "${GREEN}14. NAT类型检测" " "
 
     echo -e "${CYAN}- 网络测速${PLAIN}"
 print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
@@ -1499,6 +1651,7 @@ iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海
     11) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
     12) clear; check_tools_menu ;;
     13) clear; fix_ipv6_dns_menu ;;
+    14) clear; detect_nat_type ;;
     0) 
         echo -e "${GREEN}感谢使用，再见！${PLAIN}"
         break
