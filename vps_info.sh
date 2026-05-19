@@ -1411,17 +1411,17 @@ while true; do
 
     echo -e "${GREEN}- IP及解锁状态${PLAIN}"
     print_menu_item_3 "${GREEN}1. ChatGPT解锁检测" "${GREEN}2. Region流媒体测试" "${GREEN}3. yeahwu流媒体检测"
-    print_menu_item_3 "${GREEN}4. xykt_IP质量体检" "${GREEN}14. NAT类型检测" " "
-
-    echo -e "${CYAN}- 网络测速${PLAIN}"
-print_menu_item_3 "${CYAN}5. Speedtest-CLI极简测速" "${CYAN}6. Superspeed三网测速" "${CYAN}7. nxtrace回程测试"
-print_menu_item_3 "${CYAN}8. mtr_trace回程测试" "${CYAN}9. besttrace路由测试" " "
-
-echo -e "${PURPLE}- 性能测试${PLAIN}"
-print_menu_item_3 "${PURPLE}10. Bench性能测试" "${PURPLE}11. 融合怪大测评" " "
-
-echo -e "${YELLOW}- 工具与修复${PLAIN}"
-print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复" " "
+    print_menu_item_3 "${GREEN}4. xykt_IP质量体检" "${GREEN}5. NAT类型检测" " "
+ 
+     echo -e "${CYAN}- 网络测速${PLAIN}"
+ print_menu_item_3 "${CYAN}6. Speedtest-CLI极简测速" "${CYAN}7. Superspeed三网测速" "${CYAN}8. nxtrace回程测试"
+ print_menu_item_3 "${CYAN}9. mtr_trace回程测试" "${CYAN}10. besttrace路由测试" " "
+ 
+ echo -e "${PURPLE}- 性能测试${PLAIN}"
+ print_menu_item_3 "${PURPLE}11. Bench性能测试" "${PURPLE}12. 融合怪大测评" " "
+ 
+ echo -e "${YELLOW}- 工具与修复${PLAIN}"
+ print_menu_item_3 "${YELLOW}13. 基础工具安装" "${YELLOW}14. IPv6/DNS修复" " "
     echo -e "${GREEN}- 0. 退出脚本${PLAIN}"
 
     echo -e "${BLUE}============================================================================================${PLAIN}"
@@ -1446,8 +1446,8 @@ print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复
        wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash
        ;;
     4) clear; bash <(curl -Ls IP.Check.Place) ;;
-    5) clear
-       echo -e "${YELLOW}正在启动测速方案...${PLAIN}"
+     6) clear
+        echo -e "${YELLOW}正在启动测速方案...${PLAIN}"
        echo -e "${CYAN}方案 A: Speedtest-CLI (基于 Python)${PLAIN}"
        # 尝试执行方案 A，加上 --secure 增加兼容性
        if ! curl -Lso- https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --secure; then
@@ -1476,7 +1476,7 @@ print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复
            echo -e "${RED}方案 B 测试失败，请检查网络连接或 curl 是否安装。${PLAIN}"
        fi
        ;;
-    6) 
+     7) 
     clear
     echo -e "${YELLOW}正在加载 Superspeed 测速脚本...${PLAIN}"
     if curl -Lso- /dev/null https://raw.githubusercontent.com/ernest-v/superspeed/master/superspeed.sh 2>/dev/null; then
@@ -1485,7 +1485,7 @@ print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复
         echo -e "${RED}测速脚本加载失败，请检查网络连接${PLAIN}"
     fi
     ;;
-7)
+ 8)
         clear
         echo -e "${BLUE}============================================================================================${PLAIN}"
         print_center "🗺️  回程路由深度画像 (NextTrace)"
@@ -1588,7 +1588,7 @@ print_menu_item_3 "${YELLOW}12. 基础工具安装" "${YELLOW}13. IPv6/DNS修复
             esac
         fi
         ;;
-     8)
+     9)
         clear
         if ! command -v mtr &>/dev/null; then
             echo -e "${YELLOW}正在安装 mtr...${PLAIN}"
@@ -1642,16 +1642,16 @@ iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海
         rm -f /tmp/traceroute_testlog
         echo -e "\n——————————————————————————————\n本脚本测试结果为TCP回程路由,非ICMP回程路由 仅供参考,以最新IP段为准 谢谢\n"
         ;;
-    9) 
+     10) 
         clear
         echo -e "${YELLOW}正在加载 BestTrace 路由测试...${PLAIN}"
         bash <(curl -Ls https://raw.githubusercontent.com/tomdiary/besttrace/main/main.sh)
         ;;
-    10) clear; curl -Lso- bench.sh | bash ;;
-    11) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
-    12) clear; check_tools_menu ;;
-    13) clear; fix_ipv6_dns_menu ;;
-    14) clear; detect_nat_type ;;
+     11) clear; curl -Lso- bench.sh | bash ;;
+     12) clear; curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh ;;
+     13) clear; check_tools_menu ;;
+     14) clear; fix_ipv6_dns_menu ;;
+     5) clear; detect_nat_type ;;
     0) 
         echo -e "${GREEN}感谢使用，再见！${PLAIN}"
         break
@@ -1662,8 +1662,8 @@ iplocal=(北京电信 北京联通 北京移动 上海电信 上海联通 上海
         ;;
     esac
 
-    # 统一暂停逻辑（选项7、9、12、13不需要暂停）
-    if [ "$test_choice" != "7" ] && [ "$test_choice" != "9" ] && [ "$test_choice" != "12" ] && [ "$test_choice" != "13" ]; then
+    # 统一暂停逻辑（选项8、10、13、14不需要暂停）
+    if [ "$test_choice" != "8" ] && [ "$test_choice" != "10" ] && [ "$test_choice" != "13" ] && [ "$test_choice" != "14" ]; then
         echo -e "${BLUE}============================================================================================${PLAIN}"
         read -p "按回车键返回主菜单..." dummy
     fi
