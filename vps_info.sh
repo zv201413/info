@@ -377,17 +377,8 @@ detect_nat_type() {
 import socket, struct, os, sys
 
 MAGIC = 0x2112A442
-# STUN 服务器：优先 :443（通常放行），其次标准端口
-STUN_LIST = [
-    ("stun.cloudflare.com", 443),
-    ("stun.l.google.com", 19302),
-    ("stun1.l.google.com", 19302),
-    ("stun.cloudflare.com", 3478),
-    ("stun.voipbuster.com", 3478),
-    ("stun.iptel.org", 3478),
-]
 
-def stun_req(sock, host, port, change_ip=False, change_port=False):
+def stun_req(sock, addr, change_ip=False, change_port=False):
     tid = os.urandom(12)
     attrs = b""
     if change_ip or change_port:
@@ -395,7 +386,7 @@ def stun_req(sock, host, port, change_ip=False, change_port=False):
         attrs = struct.pack("!HH", 0x0003, 4) + struct.pack("!I", f)
     pkt = struct.pack("!HHI", 0x0001, len(attrs), MAGIC) + tid + attrs
     try:
-        sock.sendto(pkt, (host, port))
+        sock.sendto(pkt, addr)
         data, _ = sock.recvfrom(4096)
     except:
         return None
@@ -413,142 +404,191 @@ def stun_req(sock, host, port, change_ip=False, change_port=False):
             if fam == 0x01:
                 xi = struct.unpack("!I", data[pos+4:pos+8])[0] ^ MAGIC
                 return (socket.inet_ntoa(struct.pack("!I", xi)), xp)
+            elif fam == 0x02:
+                xored = struct.pack("!I", MAGIC) + tid[:12]
+                ipb = bytes(a ^ b for a, b in zip(data[pos+4:pos+20], xored))
+                return (socket.inet_ntop(socket.AF_INET6, ipb), xp)
         pos += al
     return None
 
-def try_any(servers, change_ip=False, change_port=False, sock=None):
-    close = False
-    if sock is None:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("0.0.0.0", 0)); sock.settimeout(3); close = True
-    for h, p in servers:
-        r = stun_req(sock, h, p, change_ip, change_port)
+def try_servers(servers, sock, **kw):
+    for a in servers:
+        r = stun_req(sock, a, **kw)
         if r:
-            if close: sock.close()
             return r
-    if close: sock.close()
     return None
 
-def dns_check():
-    """Test basic UDP by performing a DNS query"""
+def resolve_srvs(inp, family):
+    out = []
+    for h, p in inp:
+        try:
+            addrs = socket.getaddrinfo(h, p, family, socket.SOCK_DGRAM)
+            out.append((addrs[0][4][0], p))
+        except:
+            pass
+    return out
+
+STUN_HOSTS = [("stun.cloudflare.com", 443), ("stun.l.google.com", 19302),
+              ("stun1.l.google.com", 19302), ("stun.cloudflare.com", 3478),
+              ("stun.voipbuster.com", 3478)]
+
+def detect_family(fam):
+    lab = "IPv6" if fam == socket.AF_INET6 else "IPv4"
+    # 获取本地地址
+    ts = socket.socket(fam, socket.SOCK_DGRAM)
+    try:
+        if fam == socket.AF_INET6:
+            ts.connect(("2001:4860:4860::8888", 80))
+        else:
+            ts.connect(("8.8.8.8", 80))
+        local_ip, local_port = ts.getsockname()
+        ts.close()
+    except:
+        ts.close()
+        return None
+
+    # DNS 检测
     pkt = b"\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00" \
           b"\x06google\x03com\x00\x00\x01\x00\x01"
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.settimeout(3)
+    udp_ok = False
+    sd = socket.socket(fam, socket.SOCK_DGRAM)
+    sd.settimeout(3)
     try:
-        s.sendto(pkt, ("8.8.8.8", 53))
-        data, _ = s.recvfrom(512)
-        s.close()
-        return True
-    except:
-        s.close()
-        return False
+        dst = ("2001:4860:4860::8888", 53) if fam == socket.AF_INET6 else ("8.8.8.8", 53)
+        sd.sendto(pkt, dst); sd.recvfrom(512); udp_ok = True
+    except: pass
+    sd.close()
 
-# 获取本地 IP
-lip = None
-ts = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-try:
-    ts.connect(("8.8.8.8", 80)); lip = ts.getsockname()[0]
-except: pass
-finally: ts.close()
-if not lip:
-    print("ERR|无法获取本地 IP"); sys.exit(0)
+    # 创建 STUN 探测 socket
+    sock = socket.socket(fam, socket.SOCK_DGRAM)
+    sock.bind(("::", 0) if fam == socket.AF_INET6 else ("0.0.0.0", 0))
+    sock.settimeout(3)
+    port = sock.getsockname()[1]
 
-# 第一步：检查基础 UDP 连通性（DNS）
-udp_ok = dns_check()
+    srvs = resolve_srvs(STUN_HOSTS, fam)
+    if not srvs:
+        sock.close()
+        return ("NO_STUN_NAT", lab, f"{lab}: STUN 域名解析失败", local_ip, "")
 
-# 第二步：尝试 STUN
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind(("0.0.0.0", 0))
-sock.settimeout(3)
-lport = sock.getsockname()[1]
+    m1 = try_servers(srvs, sock)
+    if not m1:
+        sock.close()
+        if udp_ok:
+            return ("NO_STUN_NAT", lab, f"{lab}: 存在 NAT 但 STUN 端口不可达", local_ip, "")
+        else:
+            return ("UDP_BLOCKED", lab, f"{lab}: UDP 出站被屏蔽", local_ip, "")
 
-m1 = try_any(STUN_LIST, sock=sock)
-if not m1:
-    if udp_ok:
-        print(f"NO_STUN_NAT|存在 NAT，但 STUN 端口不可达（UDP 正常，VPS 防火墙可能限制非标端口）|||{lip}")
+    eip, eport = m1
+    if eip == local_ip and eport == port:
+        sock.close()
+        return ("NO_NAT", lab, f"公网 {lab} - 无 NAT 转换", eip, str(eport))
+
+    # 细分类：Google STUN（CHANGE-REQUEST）
+    gs = resolve_srvs([("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)], fam)
+    mc = try_servers(gs, sock, change_ip=True, change_port=True)
+    if mc:
+        sock.close()
+        return ("FULL_CONE", lab, "全锥型 (Full Cone)", eip, str(eport))
+
+    m2 = try_servers(srvs, sock)
+    if not m2:
+        sock.close()
+        return ("UNKNOWN", lab, "Cone 类型（无法确定子类）", eip, str(eport))
+
+    if eip != m2[0] or eport != m2[1]:
+        sock.close()
+        return ("SYMMETRIC", lab, "对称型 (Symmetric)", eip, str(eport))
+
+    mcp = try_servers(gs, sock, change_port=True)
+    if mcp:
+        r = ("RESTRICTED", lab, "地址限制锥型 (Restricted Cone)", eip, str(eport))
     else:
-        print("UDP_BLOCKED|UDP 出站被屏蔽")
-    sock.close(); sys.exit(0)
+        r = ("PORT_RESTRICTED", lab, "端口限制锥型 (Port Restricted Cone)", eip, str(eport))
+    sock.close()
+    return r
 
-eip, eport = m1
-if eip == lip and eport == lport:
-    ipv = "IPv4" if ":" not in eip else "IPv6"
-    print(f"NO_NAT|公网 {ipv} - 无 NAT 转换|{eip}|{eport}")
-    sock.close(); sys.exit(0)
+# 主流程：自动选择协议
+for fam in (socket.AF_INET, socket.AF_INET6):
+    r = detect_family(fam)
+    if r is None:
+        continue  # 当前协议不可用
+    ntype, proto, msg, ip, port = r
+    if ntype == "NO_NAT" or ntype == "FULL_CONE" or ntype == "SYMMETRIC" \
+       or ntype == "RESTRICTED" or ntype == "PORT_RESTRICTED" or ntype == "UNKNOWN":
+        # 成功分类，直接输出
+        print(f"{ntype}|{msg}|{ip}|{port}|{proto}")
+        sys.exit(0)
+    elif ntype == "NO_STUN_NAT" or ntype == "UDP_BLOCKED":
+        if fam == socket.AF_INET6:
+            # IPv4 也失败了，用 IPv6 的结果
+            print(f"{ntype}|{msg}|{ip}|{port}|{proto}")
+            sys.exit(0)
+        # 否则继续尝试 IPv6
 
-# 细分类：用支持 CHANGE-REQUEST 的 Google STUN
-GOOG = [("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)]
-
-mc = try_any(GOOG, change_ip=True, change_port=True, sock=sock)
-if mc:
-    print(f"FULL_CONE|全锥型 (Full Cone) - 外网任意主机均可通过映射地址访问|{eip}|{eport}")
-    sock.close(); sys.exit(0)
-
-m2 = try_any(STUN_LIST, sock=sock)
-if not m2:
-    print(f"UNKNOWN|Cone 类型（无法确定子类）|{eip}|{eport}")
-    sock.close(); sys.exit(0)
-
-if eip != m2[0] or eport != m2[1]:
-    print(f"SYMMETRIC|对称型 (Symmetric) - 每目标独立映射|{eip}|{eport}")
-    sock.close(); sys.exit(0)
-
-mcp = try_any(GOOG, change_port=True, sock=sock)
-if mcp:
-    print(f"RESTRICTED|地址限制锥型 (Restricted Cone)|{eip}|{eport}")
-else:
-    print(f"PORT_RESTRICTED|端口限制锥型 (Port Restricted Cone)|{eip}|{eport}")
-sock.close()
+# 两个协议都不可用
+print("NO_NET|IPv4 和 IPv6 网络均不可用||||")
 PYEOF
 )
 
-    local nat_type nat_msg ext_ip ext_port
+    local nat_type nat_msg ext_ip ext_port nat_proto
     nat_type=$(echo "$result" | head -1 | cut -d'|' -f1)
     nat_msg=$(echo "$result" | head -1 | cut -d'|' -f2)
     ext_ip=$(echo "$result" | head -1 | cut -d'|' -f3)
     ext_port=$(echo "$result" | head -1 | cut -d'|' -f4)
+    nat_proto=$(echo "$result" | head -1 | cut -d'|' -f5)
 
     echo -e "${BLUE}============================================================================================${PLAIN}"
 
     case "$nat_type" in
         NO_NAT)
             echo -e "${GREEN}结果: 公网 IP（无 NAT）${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}${PLAIN}"
             ;;
         FULL_CONE)
             echo -e "${GREEN}结果: 全锥型 NAT (Full Cone NAT)${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: 外网任何主机均可通过 ${ext_ip}:${ext_port} 访问本机${PLAIN}"
             ;;
         RESTRICTED)
             echo -e "${GREEN}结果: 地址限制锥型 NAT (Restricted Cone)${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: 仅本机曾发送过数据的目标 IP 可回访${PLAIN}"
             ;;
         PORT_RESTRICTED)
             echo -e "${YELLOW}结果: 端口限制锥型 NAT (Port Restricted Cone)${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: 仅本机曾发送过数据的目标 IP:Port 可回访${PLAIN}"
             ;;
         SYMMETRIC)
             echo -e "${RED}结果: 对称型 NAT (Symmetric NAT)${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: 每个目标地址分配独立映射，P2P 穿透困难${PLAIN}"
             ;;
         NO_STUN_NAT)
-            echo -e "${YELLOW}结果: NAT 存在（STUN 端口受限，无法精确分类）${PLAIN}"
+            echo -e "${YELLOW}结果: NAT 存在（STUN 端口受限）${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}本地 IP: ${ext_ip}${PLAIN}"
-            echo -e "${YELLOW}说明: UDP 出站正常（DNS 可通），但 STUN 端口被防火墙限制。VPS 可能有 NAT，但无法判断具体类型${PLAIN}"
+            echo -e "${YELLOW}说明: UDP 出站正常（DNS 可通），但 STUN 端口被防火墙限制，无法精确分类${PLAIN}"
             ;;
         UDP_BLOCKED)
             echo -e "${RED}结果: UDP 出站被屏蔽${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${YELLOW}说明: DNS 和 STUN 均无响应，UDP 出站可能完全被防火墙阻断${PLAIN}"
             ;;
         UNKNOWN)
             echo -e "${YELLOW}结果: 部分检测成功，无法完全分类${PLAIN}"
+            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: ${nat_msg}${PLAIN}"
+            ;;
+        NO_NET)
+            echo -e "${RED}结果: 网络不可达${PLAIN}"
+            echo -e "${YELLOW}说明: IPv4 和 IPv6 均无法进行网络检测${PLAIN}"
             ;;
         ERR*)
             echo -e "${RED}结果: 检测失败${PLAIN}"
