@@ -377,8 +377,9 @@ detect_nat_type() {
 import socket, struct, os, sys
 
 MAGIC = 0x2112A442
-# 多组 STUN 服务器，按优先级排列
-SRVS = [
+# STUN 服务器：优先 :443（通常放行），其次标准端口
+STUN_LIST = [
+    ("stun.cloudflare.com", 443),
     ("stun.l.google.com", 19302),
     ("stun1.l.google.com", 19302),
     ("stun.cloudflare.com", 3478),
@@ -396,7 +397,7 @@ def stun_req(sock, host, port, change_ip=False, change_port=False):
     try:
         sock.sendto(pkt, (host, port))
         data, _ = sock.recvfrom(4096)
-    except Exception:
+    except:
         return None
     if len(data) < 20:
         return None
@@ -415,25 +416,35 @@ def stun_req(sock, host, port, change_ip=False, change_port=False):
         pos += al
     return None
 
-# 尝试所有 STUN 服务器直到有响应
-def try_any(pairs, change_ip=False, change_port=False, sock=None):
+def try_any(servers, change_ip=False, change_port=False, sock=None):
+    close = False
     if sock is None:
-        own_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        own_sock.bind(("0.0.0.0", 0))
-        own_sock.settimeout(3)
-        close = True
-    else:
-        own_sock = sock
-        close = False
-    for h, p in pairs:
-        r = stun_req(own_sock, h, p, change_ip, change_port)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(("0.0.0.0", 0)); sock.settimeout(3); close = True
+    for h, p in servers:
+        r = stun_req(sock, h, p, change_ip, change_port)
         if r:
-            if close: own_sock.close()
+            if close: sock.close()
             return r
-    if close: own_sock.close()
+    if close: sock.close()
     return None
 
-# get local IP
+def dns_check():
+    """Test basic UDP by performing a DNS query"""
+    pkt = b"\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00" \
+          b"\x06google\x03com\x00\x00\x01\x00\x01"
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(3)
+    try:
+        s.sendto(pkt, ("8.8.8.8", 53))
+        data, _ = s.recvfrom(512)
+        s.close()
+        return True
+    except:
+        s.close()
+        return False
+
+# 获取本地 IP
 lip = None
 ts = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 try:
@@ -443,15 +454,21 @@ finally: ts.close()
 if not lip:
     print("ERR|无法获取本地 IP"); sys.exit(0)
 
+# 第一步：检查基础 UDP 连通性（DNS）
+udp_ok = dns_check()
+
+# 第二步：尝试 STUN
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", 0))
 sock.settimeout(3)
 lport = sock.getsockname()[1]
 
-# Test I: 逐组尝试 STUN 服务器
-m1 = try_any(SRVS, sock=sock)
+m1 = try_any(STUN_LIST, sock=sock)
 if not m1:
-    print("BLOCKED|所有 STUN 服务器均无响应（UDP 可能正常，但 Google/Cloudflare STUN 不可达）")
+    if udp_ok:
+        print(f"NO_STUN_NAT|存在 NAT，但 STUN 端口不可达（UDP 正常，VPS 防火墙可能限制非标端口）|||{lip}")
+    else:
+        print("UDP_BLOCKED|UDP 出站被屏蔽")
     sock.close(); sys.exit(0)
 
 eip, eport = m1
@@ -460,27 +477,24 @@ if eip == lip and eport == lport:
     print(f"NO_NAT|公网 {ipv} - 无 NAT 转换|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
-# 后续细分类测试：用 Google STUN（支持 CHANGE-REQUEST）
-GOOG_SRVS = [("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)]
+# 细分类：用支持 CHANGE-REQUEST 的 Google STUN
+GOOG = [("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)]
 
-# Test II: CHANGE-REQUEST(IP+Port) → Full Cone
-mc = try_any(GOOG_SRVS, change_ip=True, change_port=True, sock=sock)
+mc = try_any(GOOG, change_ip=True, change_port=True, sock=sock)
 if mc:
     print(f"FULL_CONE|全锥型 (Full Cone) - 外网任意主机均可通过映射地址访问|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
-# Test III: 连另一台服务器 → Symmetric vs Cone
-m2 = try_any(SRVS, sock=sock)
+m2 = try_any(STUN_LIST, sock=sock)
 if not m2:
-    print(f"UNKNOWN|Cone 类型（无法确定子类 - 第二台服务器无响应）|{eip}|{eport}")
+    print(f"UNKNOWN|Cone 类型（无法确定子类）|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
 if eip != m2[0] or eport != m2[1]:
     print(f"SYMMETRIC|对称型 (Symmetric) - 每目标独立映射|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
-# Test IV: CHANGE-REQUEST(Port only) → Restricted vs Port Restricted
-mcp = try_any(GOOG_SRVS, change_port=True, sock=sock)
+mcp = try_any(GOOG, change_port=True, sock=sock)
 if mcp:
     print(f"RESTRICTED|地址限制锥型 (Restricted Cone)|{eip}|{eport}")
 else:
@@ -522,9 +536,14 @@ PYEOF
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: 每个目标地址分配独立映射，P2P 穿透困难${PLAIN}"
             ;;
-        BLOCKED)
-            echo -e "${YELLOW}结果: STUN 服务器不可达，无法完成检测${PLAIN}"
-            echo -e "${YELLOW}说明: 所有 STUN 服务器均无响应。UDP 可能正常（若 TUIC/Hy2 可用），请检查 Google/Cloudflare STUN 是否被封锁${PLAIN}"
+        NO_STUN_NAT)
+            echo -e "${YELLOW}结果: NAT 存在（STUN 端口受限，无法精确分类）${PLAIN}"
+            echo -e "${CYAN}本地 IP: ${ext_ip}${PLAIN}"
+            echo -e "${YELLOW}说明: UDP 出站正常（DNS 可通），但 STUN 端口被防火墙限制。VPS 可能有 NAT，但无法判断具体类型${PLAIN}"
+            ;;
+        UDP_BLOCKED)
+            echo -e "${RED}结果: UDP 出站被屏蔽${PLAIN}"
+            echo -e "${YELLOW}说明: DNS 和 STUN 均无响应，UDP 出站可能完全被防火墙阻断${PLAIN}"
             ;;
         UNKNOWN)
             echo -e "${YELLOW}结果: 部分检测成功，无法完全分类${PLAIN}"
