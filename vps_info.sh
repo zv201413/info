@@ -377,7 +377,14 @@ detect_nat_type() {
 import socket, struct, os, sys
 
 MAGIC = 0x2112A442
-SRVS = [("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)]
+# 多组 STUN 服务器，按优先级排列
+SRVS = [
+    ("stun.l.google.com", 19302),
+    ("stun1.l.google.com", 19302),
+    ("stun.cloudflare.com", 3478),
+    ("stun.voipbuster.com", 3478),
+    ("stun.iptel.org", 3478),
+]
 
 def stun_req(sock, host, port, change_ip=False, change_port=False):
     tid = os.urandom(12)
@@ -408,6 +415,24 @@ def stun_req(sock, host, port, change_ip=False, change_port=False):
         pos += al
     return None
 
+# 尝试所有 STUN 服务器直到有响应
+def try_any(pairs, change_ip=False, change_port=False, sock=None):
+    if sock is None:
+        own_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        own_sock.bind(("0.0.0.0", 0))
+        own_sock.settimeout(3)
+        close = True
+    else:
+        own_sock = sock
+        close = False
+    for h, p in pairs:
+        r = stun_req(own_sock, h, p, change_ip, change_port)
+        if r:
+            if close: own_sock.close()
+            return r
+    if close: own_sock.close()
+    return None
+
 # get local IP
 lip = None
 ts = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -420,33 +445,42 @@ if not lip:
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", 0))
-sock.settimeout(4)
+sock.settimeout(3)
 lport = sock.getsockname()[1]
 
-m1 = stun_req(sock, SRVS[0][0], SRVS[0][1])
+# Test I: 逐组尝试 STUN 服务器
+m1 = try_any(SRVS, sock=sock)
 if not m1:
-    print("BLOCKED|UDP 通信被屏蔽（无 STUN 响应）"); sock.close(); sys.exit(0)
+    print("BLOCKED|所有 STUN 服务器均无响应（UDP 可能正常，但 Google/Cloudflare STUN 不可达）")
+    sock.close(); sys.exit(0)
 
 eip, eport = m1
 if eip == lip and eport == lport:
     ipv = "IPv4" if ":" not in eip else "IPv6"
-    print(f"NO_NAT|公网 {ipv} - 无 NAT 转换|{eip}|{eport}"); sock.close(); sys.exit(0)
+    print(f"NO_NAT|公网 {ipv} - 无 NAT 转换|{eip}|{eport}")
+    sock.close(); sys.exit(0)
 
-mc = stun_req(sock, SRVS[0][0], SRVS[0][1], change_ip=True, change_port=True)
+# 后续细分类测试：用 Google STUN（支持 CHANGE-REQUEST）
+GOOG_SRVS = [("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)]
+
+# Test II: CHANGE-REQUEST(IP+Port) → Full Cone
+mc = try_any(GOOG_SRVS, change_ip=True, change_port=True, sock=sock)
 if mc:
     print(f"FULL_CONE|全锥型 (Full Cone) - 外网任意主机均可通过映射地址访问|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
-m2 = stun_req(sock, SRVS[1][0], SRVS[1][1])
+# Test III: 连另一台服务器 → Symmetric vs Cone
+m2 = try_any(SRVS, sock=sock)
 if not m2:
-    print(f"UNKNOWN|Cone 类型（无法确定子类 - Server B 无响应）|{eip}|{eport}")
+    print(f"UNKNOWN|Cone 类型（无法确定子类 - 第二台服务器无响应）|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
 if eip != m2[0] or eport != m2[1]:
     print(f"SYMMETRIC|对称型 (Symmetric) - 每目标独立映射|{eip}|{eport}")
     sock.close(); sys.exit(0)
 
-mcp = stun_req(sock, SRVS[0][0], SRVS[0][1], change_port=True)
+# Test IV: CHANGE-REQUEST(Port only) → Restricted vs Port Restricted
+mcp = try_any(GOOG_SRVS, change_port=True, sock=sock)
 if mcp:
     print(f"RESTRICTED|地址限制锥型 (Restricted Cone)|{eip}|{eport}")
 else:
@@ -489,8 +523,8 @@ PYEOF
             echo -e "${YELLOW}说明: 每个目标地址分配独立映射，P2P 穿透困难${PLAIN}"
             ;;
         BLOCKED)
-            echo -e "${RED}结果: UDP 被屏蔽，无法检测${PLAIN}"
-            echo -e "${YELLOW}说明: STUN 服务器无响应，请检查防火墙/网络${PLAIN}"
+            echo -e "${YELLOW}结果: STUN 服务器不可达，无法完成检测${PLAIN}"
+            echo -e "${YELLOW}说明: 所有 STUN 服务器均无响应。UDP 可能正常（若 TUIC/Hy2 可用），请检查 Google/Cloudflare STUN 是否被封锁${PLAIN}"
             ;;
         UNKNOWN)
             echo -e "${YELLOW}结果: 部分检测成功，无法完全分类${PLAIN}"
