@@ -378,13 +378,9 @@ import socket, struct, os, sys
 
 MAGIC = 0x2112A442
 
-def stun_req(sock, addr, change_ip=False, change_port=False):
+def stun_req(sock, addr):
     tid = os.urandom(12)
-    attrs = b""
-    if change_ip or change_port:
-        f = (0x04 if change_ip else 0) | (0x02 if change_port else 0)
-        attrs = struct.pack("!HH", 0x0003, 4) + struct.pack("!I", f)
-    pkt = struct.pack("!HHI", 0x0001, len(attrs), MAGIC) + tid + attrs
+    pkt = struct.pack("!HHI", 0x0001, 0, MAGIC) + tid
     try:
         sock.sendto(pkt, addr)
         data, _ = sock.recvfrom(4096)
@@ -409,13 +405,6 @@ def stun_req(sock, addr, change_ip=False, change_port=False):
                 ipb = bytes(a ^ b for a, b in zip(data[pos+4:pos+20], xored))
                 return (socket.inet_ntop(socket.AF_INET6, ipb), xp)
         pos += al
-    return None
-
-def try_servers(servers, sock, **kw):
-    for a in servers:
-        r = stun_req(sock, a, **kw)
-        if r:
-            return r
     return None
 
 def resolve_srvs(inp, family):
@@ -468,65 +457,67 @@ def detect_family(fam):
     srvs = resolve_srvs(STUN_HOSTS, fam)
     if not srvs:
         sock.close()
-        return ("NO_STUN_NAT", lab, f"{lab}: STUN 域名解析失败", local_ip, "")
+        return ("NO_STUN", lab, f"{lab}: STUN 域名解析失败", local_ip, "")
 
-    m1 = try_servers(srvs, sock)
-    if not m1:
+    m1_res = None
+    m1_server = None
+    for srv in srvs:
+        m1_res = stun_req(sock, srv)
+        if m1_res:
+            m1_server = srv
+            break
+
+    if not m1_res:
         sock.close()
         if udp_ok:
-            return ("NO_STUN_NAT", lab, f"{lab}: 存在 NAT 但 STUN 端口不可达", local_ip, "")
+            return ("NO_STUN", lab, f"{lab}: 存在 NAT 但 STUN 端口不可达", local_ip, "")
         else:
-            return ("UDP_BLOCKED", lab, f"{lab}: UDP 出站被屏蔽", local_ip, "")
+            return ("UDP_BLOCKED", lab, f"{lab}: UDP 出站被完全阻断", local_ip, "")
 
-    eip, eport = m1
+    eip, eport = m1_res
     if eip == local_ip and eport == port:
         sock.close()
         return ("NO_NAT", lab, f"公网 {lab} - 无 NAT 转换", eip, str(eport))
 
-    # 细分类：Google STUN（CHANGE-REQUEST）
-    gs = resolve_srvs([("stun.l.google.com", 19302), ("stun1.l.google.com", 19302)], fam)
-    mc = try_servers(gs, sock, change_ip=True, change_port=True)
-    if mc:
-        sock.close()
-        return ("FULL_CONE", lab, "全锥型 (Full Cone)", eip, str(eport))
+    # 找一个不同的服务器 IP 用于第二次探测，测试对称型 NAT
+    m2_res = None
+    for srv in srvs:
+        if srv[0] != m1_server[0]: # 确保 IP 不同
+            m2_res = stun_req(sock, srv)
+            if m2_res:
+                break
 
-    m2 = try_servers(srvs, sock)
-    if not m2:
-        sock.close()
-        return ("UNKNOWN", lab, "Cone 类型（无法确定子类）", eip, str(eport))
-
-    if eip != m2[0] or eport != m2[1]:
-        sock.close()
-        return ("SYMMETRIC", lab, "对称型 (Symmetric)", eip, str(eport))
-
-    mcp = try_servers(gs, sock, change_port=True)
-    if mcp:
-        r = ("RESTRICTED", lab, "地址限制锥型 (Restricted Cone)", eip, str(eport))
-    else:
-        r = ("PORT_RESTRICTED", lab, "端口限制锥型 (Port Restricted Cone)", eip, str(eport))
     sock.close()
-    return r
+
+    if not m2_res:
+        return ("CONE_NAT", lab, "锥型 (Cone NAT - 保守估计)", eip, str(eport))
+
+    if eip != m2_res[0] or eport != m2_res[1]:
+        return ("SYMMETRIC", lab, "对称型 (Symmetric NAT)", eip, str(eport))
+
+    return ("CONE_NAT", lab, "锥型 (Cone NAT)", eip, str(eport))
 
 # 主流程：自动选择协议
+best_result = None
 for fam in (socket.AF_INET, socket.AF_INET6):
     r = detect_family(fam)
     if r is None:
         continue  # 当前协议不可用
     ntype, proto, msg, ip, port = r
-    if ntype == "NO_NAT" or ntype == "FULL_CONE" or ntype == "SYMMETRIC" \
-       or ntype == "RESTRICTED" or ntype == "PORT_RESTRICTED" or ntype == "UNKNOWN":
+    if ntype in ("NO_NAT", "CONE_NAT", "SYMMETRIC"):
         # 成功分类，直接输出
         print(f"{ntype}|{msg}|{ip}|{port}|{proto}")
         sys.exit(0)
-    elif ntype == "NO_STUN_NAT" or ntype == "UDP_BLOCKED":
-        if fam == socket.AF_INET6:
-            # IPv4 也失败了，用 IPv6 的结果
-            print(f"{ntype}|{msg}|{ip}|{port}|{proto}")
-            sys.exit(0)
-        # 否则继续尝试 IPv6
+    elif ntype in ("NO_STUN", "UDP_BLOCKED"):
+        # 记录不完美的分类结果，以便最后保底输出
+        if best_result is None:
+            best_result = f"{ntype}|{msg}|{ip}|{port}|{proto}"
 
-# 两个协议都不可用
-print("NO_NET|IPv4 和 IPv6 网络均不可用||||")
+if best_result:
+    print(best_result)
+else:
+    # 两个协议都不可用
+    print("NO_NET|IPv4 和 IPv6 网络均不可用||||")
 PYEOF
 )
 
@@ -545,23 +536,11 @@ PYEOF
             echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}${PLAIN}"
             ;;
-        FULL_CONE)
-            echo -e "${GREEN}结果: 全锥型 NAT (Full Cone NAT)${PLAIN}"
+        CONE_NAT)
+            echo -e "${GREEN}结果: 锥型 NAT (Cone NAT)${PLAIN}"
             echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
-            echo -e "${YELLOW}说明: 外网任何主机均可通过 ${ext_ip}:${ext_port} 访问本机${PLAIN}"
-            ;;
-        RESTRICTED)
-            echo -e "${GREEN}结果: 地址限制锥型 NAT (Restricted Cone)${PLAIN}"
-            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
-            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
-            echo -e "${YELLOW}说明: 仅本机曾发送过数据的目标 IP 可回访${PLAIN}"
-            ;;
-        PORT_RESTRICTED)
-            echo -e "${YELLOW}结果: 端口限制锥型 NAT (Port Restricted Cone)${PLAIN}"
-            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
-            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
-            echo -e "${YELLOW}说明: 仅本机曾发送过数据的目标 IP:Port 可回访${PLAIN}"
+            echo -e "${YELLOW}说明: 映射地址与目标无关，有利于 P2P 穿透${PLAIN}"
             ;;
         SYMMETRIC)
             echo -e "${RED}结果: 对称型 NAT (Symmetric NAT)${PLAIN}"
@@ -569,22 +548,16 @@ PYEOF
             echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
             echo -e "${YELLOW}说明: 每个目标地址分配独立映射，P2P 穿透困难${PLAIN}"
             ;;
-        NO_STUN_NAT)
-            echo -e "${YELLOW}结果: NAT 存在（STUN 端口受限）${PLAIN}"
+        NO_STUN)
+            echo -e "${YELLOW}结果: NAT 存在（STUN 受限）${PLAIN}"
             echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${CYAN}本地 IP: ${ext_ip}${PLAIN}"
-            echo -e "${YELLOW}说明: UDP 出站正常（DNS 可通），但 STUN 端口被防火墙限制，无法精确分类${PLAIN}"
+            echo -e "${YELLOW}说明: UDP 出站正常（DNS 可通），但 STUN 不可达，可能端口被封或防火墙限制${PLAIN}"
             ;;
         UDP_BLOCKED)
-            echo -e "${RED}结果: UDP 出站被屏蔽${PLAIN}"
+            echo -e "${RED}结果: UDP 出站被完全阻断${PLAIN}"
             echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
             echo -e "${YELLOW}说明: DNS 和 STUN 均无响应，UDP 出站可能完全被防火墙阻断${PLAIN}"
-            ;;
-        UNKNOWN)
-            echo -e "${YELLOW}结果: 部分检测成功，无法完全分类${PLAIN}"
-            echo -e "${CYAN}协议: ${nat_proto}${PLAIN}"
-            echo -e "${CYAN}出口 IP: ${ext_ip}:${ext_port}${PLAIN}"
-            echo -e "${YELLOW}说明: ${nat_msg}${PLAIN}"
             ;;
         NO_NET)
             echo -e "${RED}结果: 网络不可达${PLAIN}"
