@@ -9,8 +9,9 @@
 # 一次、域名跟着变，写死本来就会坏，公开还等于把端点推进搜索索引。
 # 域名改成交互输入 + 备忘持久化，回车沿用上次的值。
 #
-# 只输入三项，其中两项通常可跳过：
-#   - relay 地址      有备忘时预填，回车即沿用
+# 只输入四项，其中三项通常可跳过：
+#   - relay HTTP 地址 有备忘时预填，回车即沿用
+#   - relay WSS 地址  有备忘时预填，回车即沿用
 #   - relay 凭据      每次都要（不落盘）
 #   - EasyTier 密钥   仅 config.env 不存在时询问
 # 凭据全程只走 stdin，不进 argv、不进 history、不落盘。
@@ -20,8 +21,8 @@ PKG_NAME="bas-rl2-bootstrap.tar.gz"
 # 安装包 SHA-256，由 bas/mkpkg.sh 打印。它是这条分发链上唯一的防篡改锚点，
 # 所以只认脚本里写死的这一份，不从 BAS 侧任何可写文件里读。
 # 分两段拼接，避免整行过长在终端里被折断。重新打包后必须同步这两行。
-SHA_DEF=630607927dcc43048a3ccec5867dd6e0a41c
-SHA_DEF+=ba2ce117a2833f7acfa32ce884b3
+SHA_DEF=4f3111fad7fa80fab19e98b1a83cf6d9c29ec3
+SHA_DEF+=4d28e9ed36ec9ecd511b4bcb0a
 PKG_SHA="${PKG_SHA:-$SHA_DEF}"
 PKG="/tmp/$PKG_NAME"
 SRC="$HOME/bas-rl2-bootstrap"
@@ -64,11 +65,28 @@ RL2_HTTP="${RL2_HTTP%/}"
 [[ "$RL2_HTTP" == https://* ]] || die "地址必须以 https:// 开头，收到: $RL2_HTTP"
 [[ "$RL2_HTTP" == *' '* ]] && die '地址不能含空格'
 
-if [[ "$RL2_HTTP" != "$MEMO_DEF" ]]; then
+WSS_MEMO_DEF=''
+[[ -r "$MEMO" ]] && WSS_MEMO_DEF="$(sed -n 's|^RL2_WSS=||p' "$MEMO" | tail -n1)"
+if [[ -n "${RL2_WSS:-}" ]]; then
+  echo "用环境变量传入的 WSS 地址，跳过交互"
+elif [[ -t 0 ]]; then
+  read -e -i "$WSS_MEMO_DEF" -r -p 'Railway WSS 地址: ' RL2_WSS
+else
+  die '非交互运行请用 RL2_WSS=wss://... 传入 WSS 地址'
+fi
+
+RL2_WSS="${RL2_WSS%/}/"
+[[ "$RL2_WSS" == wss://* ]] || die "WSS 地址必须以 wss:// 开头，收到: $RL2_WSS"
+[[ "$RL2_WSS" == *' '* ]] && die 'WSS 地址不能含空格'
+
+if [[ "$RL2_HTTP" != "$MEMO_DEF" || "$RL2_WSS" != "${WSS_MEMO_DEF%/}/" ]]; then
   umask 077
   mkdir -p "$(dirname "$MEMO")"
   chmod 700 "$(dirname "$MEMO")" 2>/dev/null || true
-  printf 'RL2_HTTP=%s\n' "$RL2_HTTP" > "$MEMO"
+  {
+    printf 'RL2_HTTP=%s\n' "$RL2_HTTP"
+    printf 'RL2_WSS=%s\n' "$RL2_WSS"
+  } > "$MEMO"
   chmod 600 "$MEMO"
   if [[ "$MEMO_PERSISTENT" == 1 ]]; then
     echo "✓ 已记住，下次预填: $MEMO"
@@ -124,9 +142,13 @@ cd "$SRC"
 # bootstrap 的 prompt_config 用 read 从 stdin 取值，顺序是
 # 网络密钥、relay 凭据；config.env 已存在时它不读 stdin。
 if [[ -n "$SECRET" ]]; then
-  printf '%s\n%s\n' "$SECRET" "$AUTH" | ./bootstrap-rl2.sh start
+  printf '%s\n%s\n' "$SECRET" "$AUTH" \
+    | env BOOTSTRAP_RL2_HTTP="$RL2_HTTP" BOOTSTRAP_RL2_WSS="$RL2_WSS" \
+        ./bootstrap-rl2.sh start
 else
-  ./bootstrap-rl2.sh start
+  printf '%s\n' "$AUTH" \
+    | env BOOTSTRAP_UPDATE_AUTH=1 BOOTSTRAP_RL2_HTTP="$RL2_HTTP" BOOTSTRAP_RL2_WSS="$RL2_WSS" \
+        ./bootstrap-rl2.sh start
 fi
 unset SECRET AUTH
 
