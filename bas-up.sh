@@ -49,7 +49,7 @@ for d in "$HOME/projects" /home/user/projects; do
 done
 [[ -n "$MEMO" ]] || MEMO="$HOME/.bas-rl2-endpoint"
 
-say "① relay 地址"
+say "① HTTP 文件 relay 地址（Railway Port 8000）"
 MEMO_DEF=''
 [[ -r "$MEMO" ]] && MEMO_DEF="$(sed -n 's|^RL2_HTTP=||p' "$MEMO" | tail -n1)"
 
@@ -57,21 +57,23 @@ if [[ -n "${RL2_HTTP:-}" ]]; then
   echo "用环境变量传入的地址，跳过交互"
 elif [[ -t 0 ]]; then
   # -e -i：把上次的值预填进行编辑缓冲区，回车直接沿用，也能就地改。
-  read -e -i "$MEMO_DEF" -r -p 'Railway relay 地址: ' RL2_HTTP
+  read -e -i "$MEMO_DEF" -r -p 'HTTP relay 地址（https://...，Port 8000）: ' RL2_HTTP
 else
   die '非交互运行请用 RL2_HTTP=https://... 传入 relay 地址'
 fi
 
 RL2_HTTP="${RL2_HTTP%/}"
+[[ "$RL2_HTTP" != wss://* ]] || die '这是 WSS 组网地址；本步应输入 https://ocr-mesh-production.up.railway.app，下一步才输入 wss://...'
 [[ "$RL2_HTTP" == https://* ]] || die "地址必须以 https:// 开头，收到: $RL2_HTTP"
 [[ "$RL2_HTTP" == *' '* ]] && die '地址不能含空格'
 
 WSS_MEMO_DEF=''
 [[ -r "$MEMO" ]] && WSS_MEMO_DEF="$(sed -n 's|^RL2_WSS=||p' "$MEMO" | tail -n1)"
+say "② WSS 组网地址（Railway Port 25433）"
 if [[ -n "${RL2_WSS:-}" ]]; then
   echo "用环境变量传入的 WSS 地址，跳过交互"
 elif [[ -t 0 ]]; then
-  read -e -i "$WSS_MEMO_DEF" -r -p 'Railway WSS 地址: ' RL2_WSS
+  read -e -i "$WSS_MEMO_DEF" -r -p 'WSS 组网地址（wss://...，Port 25433）: ' RL2_WSS
 else
   die '非交互运行请用 RL2_WSS=wss://... 传入 WSS 地址'
 fi
