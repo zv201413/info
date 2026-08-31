@@ -12,9 +12,10 @@
 # 只输入四项，其中三项通常可跳过：
 #   - relay HTTP 地址 有备忘时预填，回车即沿用
 #   - relay WSS 地址  有备忘时预填，回车即沿用
-#   - relay 凭据      每次都要（不落盘）
+#   - relay 凭据      每次都要；bootstrap 以 0600 保存到 Dev Space 配置
 #   - EasyTier 密钥   仅 config.env 不存在时询问
-# 凭据全程只走 stdin，不进 argv、不进 history、不落盘。
+# 凭据输入只走 stdin，不进 argv 和 shell history；bootstrap 为后续 OCR
+# 任务把它写进 0600 的 config.env/ocr-env，Dev Space 重置时会随 $HOME 清除。
 set -Eeuo pipefail
 
 PKG_NAME="bas-rl2-bootstrap.tar.gz"
