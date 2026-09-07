@@ -22,7 +22,7 @@ PKG_NAME="bas-rl2-bootstrap.tar.gz"
 # 安装包 SHA-256，由 bas/mkpkg.sh 打印。它是这条分发链上唯一的防篡改锚点，
 # 所以只认脚本里写死的这一份，不从 BAS 侧任何可写文件里读。
 # 分两段拼接，避免整行过长在终端里被折断。重新打包后必须同步这两行。
-SHA_DEF=7fa7c9c1810e23aaf2cbfd6d589141d14ef6dc431d19b2dcf1b5bdfa3798f3b4
+SHA_DEF=6f679af63ba746c519bc6006e50f799939d6767ac21eb2fd8a016849e0d6b78e
 PKG_SHA="${PKG_SHA:-$SHA_DEF}"
 PKG="/tmp/$PKG_NAME"
 SRC="$HOME/bas-rl2-bootstrap"
